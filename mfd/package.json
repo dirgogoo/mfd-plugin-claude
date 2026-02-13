@@ -1,6 +1,6 @@
 {
   "name": "mfd-tools-plugin",
-  "version": "0.1.0",
+  "version": "1.0.4",
   "private": true,
   "description": "MFD plugin runtime dependencies",
   "type": "module",

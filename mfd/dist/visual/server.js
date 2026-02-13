@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { resolve, dirname, join } from "node:path";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadModelSnapshot } from "./data.js";
 import { createWatcher } from "./watcher.js";
@@ -91,9 +91,9 @@ const watcher = createWatcher(config.file, () => {
 });
 // ===== Hono App =====
 const app = new Hono();
-// Static files
-const staticRoot = join(__dirname, "..", "static");
-app.use("/static/*", serveStatic({ root: resolve(join(__dirname, "..")) }));
+// Static files — __dirname is dist/visual/, static/ is at package root (2 levels up)
+const packageRoot = resolve(__dirname, "..", "..");
+app.use("/static/*", serveStatic({ root: packageRoot }));
 // API routes
 app.route("/", apiRoutes(() => snapshot));
 // SSE routes
