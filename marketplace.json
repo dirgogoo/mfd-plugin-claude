@@ -1,0 +1,12 @@
+{
+  "name": "mfd-marketplace",
+  "description": "MFD — Model-First Development plugin marketplace",
+  "plugins": [
+    {
+      "name": "mfd",
+      "source": ".",
+      "version": "0.1.0",
+      "description": "Model-First Development — parser, validator, diagrams, contracts, visual dashboard, and LSP for .mfd files"
+    }
+  ]
+}
