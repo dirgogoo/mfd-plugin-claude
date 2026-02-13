@@ -19,6 +19,15 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/mfd-cycle-pre-edit.sh"
           }
         ]
+      },
+      {
+        "matcher": "mcp__mfd-tools__mfd_render|mcp__mfd-tools__mfd_visual_start|mcp__mfd-tools__mfd_contract|mcp__mfd-tools__mfd_query|mcp__mfd-tools__mfd_stats",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/mfd-pre-mcp-validate.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
