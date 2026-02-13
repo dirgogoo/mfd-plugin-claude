@@ -8,5 +8,20 @@
   },
   "repository": "https://github.com/dirgogoo/mfd-plugin-claude",
   "license": "MIT",
-  "keywords": ["mfd", "model-first", "dsl", "parser", "validator", "diagrams"]
+  "keywords": ["mfd", "model-first", "dsl", "parser", "validator", "diagrams"],
+  "mcpServers": {
+    "mfd-tools": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mcp/server.js"]
+    }
+  },
+  "lspServers": {
+    "mfd": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/lsp/server.js", "--stdio"],
+      "extensionToLanguage": {
+        ".mfd": "mfd"
+      }
+    }
+  }
 }
