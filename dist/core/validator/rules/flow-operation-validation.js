@@ -1,0 +1,85 @@
+import { collectModel } from "../collect.js";
+const SKIP_ACTIONS = new Set(["emit", "return"]);
+/**
+ * FLOW_STEP_UNRESOLVED / FLOW_BRANCH_UNRESOLVED: Strict validation that
+ * flow steps and branches reference declared operations.
+ * Only active when the model declares >= 1 operation (opt-in).
+ *
+ * FLOW_TRIGGER_UNRESOLVED: `on EventName` in flow body must reference a declared event.
+ * FLOW_EMITS_UNRESOLVED: `emits EventName` in flow body must reference a declared event.
+ */
+export function flowOperationValidation(doc) {
+    const model = collectModel(doc);
+    const diagnostics = [];
+    const eventNames = new Set(model.events.map((e) => e.name));
+    // Validate flow triggers (on EventName) and emits (emits EventName)
+    for (const flow of model.flows) {
+        for (const item of flow.body) {
+            if (item.type === "OnClause") {
+                if (!eventNames.has(item.event)) {
+                    diagnostics.push({
+                        code: "FLOW_TRIGGER_UNRESOLVED",
+                        severity: "error",
+                        message: `Flow '${flow.name}' trigger 'on ${item.event}' references undeclared event '${item.event}'`,
+                        location: item.loc,
+                        help: `Declare 'event ${item.event} { ... }' or check the name`,
+                    });
+                }
+            }
+            if (item.type === "EmitsClause") {
+                if (!eventNames.has(item.event)) {
+                    diagnostics.push({
+                        code: "FLOW_EMITS_UNRESOLVED",
+                        severity: "error",
+                        message: `Flow '${flow.name}' emits undeclared event '${item.event}'`,
+                        location: item.loc,
+                        help: `Declare 'event ${item.event} { ... }' or check the name`,
+                    });
+                }
+            }
+        }
+    }
+    // Step/branch validation only when operations are declared (opt-in)
+    if (model.operations.length === 0)
+        return diagnostics;
+    const operationNames = new Set(model.operations.map((o) => o.name));
+    for (const flow of model.flows) {
+        for (const step of flow.body) {
+            if (step.type !== "FlowStep")
+                continue;
+            const fs = step;
+            // Steps without arrow are flow control (return, etc)
+            if (!fs.hasArrow)
+                continue;
+            const actionName = fs.action.trim().split(/[\s(]/)[0];
+            if (SKIP_ACTIONS.has(actionName))
+                continue;
+            if (!operationNames.has(actionName)) {
+                diagnostics.push({
+                    code: "FLOW_STEP_UNRESOLVED",
+                    severity: "error",
+                    message: `Flow '${flow.name}' step '${actionName}' is not a declared operation`,
+                    location: fs.loc,
+                    help: `Declare 'operation ${actionName}(...)' or check the name`,
+                });
+            }
+            // Branch actions
+            for (const branch of fs.branches) {
+                const branchAction = branch.action.trim().split(/[\s(]/)[0];
+                if (SKIP_ACTIONS.has(branchAction))
+                    continue;
+                if (!operationNames.has(branchAction)) {
+                    diagnostics.push({
+                        code: "FLOW_BRANCH_UNRESOLVED",
+                        severity: "error",
+                        message: `Flow '${flow.name}' branch action '${branchAction}' is not a declared operation`,
+                        location: branch.loc,
+                        help: `Declare 'operation ${branchAction}(...)' or check the name`,
+                    });
+                }
+            }
+        }
+    }
+    return diagnostics;
+}
+//# sourceMappingURL=flow-operation-validation.js.map

@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "mfd-tools": {
-      "command": "npx",
-      "args": ["mfd-mcp"],
-      "env": {}
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mcp/server.js"]
     }
   }
 }

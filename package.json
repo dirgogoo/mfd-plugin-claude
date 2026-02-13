@@ -1,0 +1,21 @@
+{
+  "name": "mfd-tools-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MFD plugin runtime dependencies",
+  "type": "module",
+  "bin": {
+    "mfd": "./dist/core/cli/index.js",
+    "mfd-mcp": "./dist/mcp/server.js",
+    "mfd-lsp": "./dist/lsp/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "commander": "^12.1.0",
+    "hono": "^4.0.0",
+    "@hono/node-server": "^1.8.0",
+    "peggy": "^4.2.0",
+    "vscode-languageserver": "^9.0.0",
+    "vscode-languageserver-textdocument": "^1.0.0"
+  }
+}

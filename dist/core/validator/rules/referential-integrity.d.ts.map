@@ -1,0 +1,1 @@
+{"version":3,"file":"referential-integrity.d.ts","sourceRoot":"","sources":["../../../../src/core/validator/rules/referential-integrity.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAY,MAAM,qBAAqB,CAAC;AACjE,OAAO,KAAK,EAAE,oBAAoB,EAAY,MAAM,aAAa,CAAC;AA0ClE;;;;;;GAMG;AACH,wBAAgB,oBAAoB,CAAC,GAAG,EAAE,WAAW,GAAG,oBAAoB,EAAE,CA0H7E"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"hover.d.ts","sourceRoot":"","sources":["../../../src/lsp/capabilities/hover.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,KAAK,EAAE,0BAA0B,EAAE,MAAM,+BAA+B,CAAC;AACvF,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,wBAAwB,CAAC;AAmB9D,wBAAgB,QAAQ,CACtB,MAAM,EAAE,0BAA0B,EAClC,UAAU,EAAE,eAAe,GAC1B,KAAK,GAAG,IAAI,CAWd"}

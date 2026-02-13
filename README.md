@@ -13,12 +13,14 @@ claude plugin install github:dirgogoo/mfd-plugin-claude
 # Then: Discover → Add from GitHub → dirgogoo/mfd-plugin-claude
 ```
 
-### Prerequisites
+### Auto-Setup
 
-The MFD MCP tools and CLI require the `mfd-tools` npm package:
+The plugin is **self-contained** — it includes the compiled MFD tooling (parser, validator, MCP server, LSP, visual dashboard). On first session, dependencies are installed automatically via a `SessionStart` hook. No manual `npm install` needed.
+
+The `mfd` CLI command is also symlinked to `~/.local/bin/mfd` automatically. If `~/.local/bin` is not in your PATH, add it:
 
 ```bash
-npm install -g mfd-tools
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## Quick Start

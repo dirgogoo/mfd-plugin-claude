@@ -1,7 +1,7 @@
 {
   "mfd": {
-    "command": "npx",
-    "args": ["mfd-lsp", "--stdio"],
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/dist/lsp/server.js", "--stdio"],
     "extensionToLanguage": {
       ".mfd": "mfd"
     }
