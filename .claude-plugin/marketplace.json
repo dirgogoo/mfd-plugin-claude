@@ -16,7 +16,16 @@
         "name": "MFD Project"
       },
       "source": "./mfd",
-      "category": "development"
+      "category": "development",
+      "lspServers": {
+        "mfd-lsp": {
+          "command": "node",
+          "args": ["${CLAUDE_PLUGIN_ROOT}/dist/lsp/server.js", "--stdio"],
+          "extensionToLanguage": {
+            ".mfd": "mfd"
+          }
+        }
+      }
     }
   ]
 }
