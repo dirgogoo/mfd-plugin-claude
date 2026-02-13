@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mfd-tools": {
+      "command": "npx",
+      "args": ["mfd-mcp"],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "mfd": {
+    "command": "npx",
+    "args": ["mfd-lsp", "--stdio"],
+    "extensionToLanguage": {
+      ".mfd": "mfd"
+    }
+  }
+}

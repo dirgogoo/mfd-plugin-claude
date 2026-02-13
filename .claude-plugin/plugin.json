@@ -3,23 +3,15 @@
   "version": "0.1.0",
   "displayName": "MFD — Model-First Development",
   "description": "Parser, validator, diagram renderer, implementation contracts, visual dashboard, and LSP for .mfd files",
-  "author": { "name": "MFD Project" },
-  "repository": "github.com/dirgogo/mfd-tools",
+  "author": {
+    "name": "MFD Project",
+    "url": "https://github.com/dirgogoo"
+  },
+  "repository": "https://github.com/dirgogoo/mfd-plugin-claude",
   "license": "MIT",
-  "mcpServers": {
-    "mfd-tools": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["mfd-mcp"]
-    }
-  },
-  "lspServers": {
-    "mfd-lsp": {
-      "command": "npx",
-      "args": ["mfd-lsp", "--stdio"],
-      "languages": ["mfd"]
-    }
-  },
+  "keywords": ["mfd", "model-first", "dsl", "parser", "validator", "diagrams"],
   "skills": "./skills",
-  "hooks": "./hooks/hooks.json"
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
+  "lspServers": "./.lsp.json"
 }

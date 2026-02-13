@@ -5,10 +5,17 @@ MFD is a development paradigm where a formal model (`.mfd` files) is the single 
 ## Installation
 
 ```bash
-/plugin install mfd@mfd-marketplace
+# From GitHub (recommended)
+claude plugin install github:dirgogoo/mfd-plugin-claude
+
+# Or via the /plugin command in Claude Code
+/plugin
+# Then: Discover → Add from GitHub → dirgogoo/mfd-plugin-claude
 ```
 
-Or via npm:
+### Prerequisites
+
+The MFD MCP tools and CLI require the `mfd-tools` npm package:
 
 ```bash
 npm install -g mfd-tools
