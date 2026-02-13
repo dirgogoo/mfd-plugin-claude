@@ -1,17 +1,22 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "mfd-marketplace",
+  "version": "0.1.0",
+  "description": "MFD — Model-First Development plugin marketplace",
   "owner": {
-    "name": "MFD Project"
+    "name": "MFD Project",
+    "email": "mfd@example.com"
   },
   "plugins": [
     {
       "name": "mfd",
-      "source": ".",
-      "version": "0.1.0",
       "description": "Model-First Development — parser, validator, diagrams, contracts, visual dashboard, and LSP for .mfd files",
+      "version": "0.1.0",
       "author": {
         "name": "MFD Project"
-      }
+      },
+      "source": "./mfd",
+      "category": "development"
     }
   ]
 }
