@@ -19,7 +19,12 @@ export function streamEndpointValidation(doc) {
                     severity: "error",
                     message: `STREAM endpoint '${ep.path}' must not have an input type (subscriptions are read-only)`,
                     location: ep.loc,
-                    help: "Remove the input type: STREAM /path -> EventType",
+                    help: `STREAM endpoints are read-only subscriptions and cannot accept input. Correct syntax:
+
+  api REST @prefix(/api) {
+    STREAM /orders/events -> OrderUpdated   # correct: no input
+    POST /orders (CreateOrder) -> Order     # POST for mutations
+  }`,
                 });
             }
             if (ep.type === "ApiEndpointExpanded" && ep.body) {
@@ -40,7 +45,13 @@ export function streamEndpointValidation(doc) {
                     severity: "error",
                     message: `STREAM endpoint '${ep.path}' must have a return type (the event it delivers)`,
                     location: ep.loc,
-                    help: "Add a return type: STREAM /path -> EventType",
+                    help: `STREAM must declare the event type it delivers. Declare an event, then reference it:
+
+  event OrderUpdated { order_id: uuid, status: string }
+
+  api REST @prefix(/api) {
+    STREAM /orders/events -> OrderUpdated
+  }`,
                 });
                 continue;
             }
@@ -52,7 +63,15 @@ export function streamEndpointValidation(doc) {
                     severity: "error",
                     message: `STREAM endpoint '${ep.path}' returns '${refName}' which is not a declared event`,
                     location: ep.loc,
-                    help: `Declare 'event ${refName} { ... }' or reference an existing event`,
+                    help: `STREAM must return a declared event type, not an entity or other construct. Fix:
+
+  # 1. Declare the event:
+  event ${refName} { /* fields describing what changed */ }
+
+  # 2. Reference it in STREAM:
+  STREAM /path -> ${refName}
+
+  Note: if '${refName}' is an entity, create a separate event for the stream.`,
                 });
             }
         }

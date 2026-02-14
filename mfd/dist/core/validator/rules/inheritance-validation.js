@@ -71,7 +71,15 @@ export function inheritanceValidation(doc) {
                             severity: "error",
                             message: `${kind} '${item.name}' extends '${item.extends}' which is not marked @abstract`,
                             location: item.loc,
-                            help: `Add @abstract decorator to '${item.extends}' or remove the extends clause`,
+                            help: `A construct must be marked @abstract to be extended. Fix:
+
+  ${kind} ${item.extends} @abstract {
+    /* shared fields/behavior */
+  }
+
+  ${kind} ${item.name} extends ${item.extends} {
+    /* additional fields */
+  }`,
                         });
                     }
                 }
@@ -87,7 +95,17 @@ export function inheritanceValidation(doc) {
                             severity: "error",
                             message: `${kind} '${item.name}' implements '${iface}' which is not marked @interface`,
                             location: item.loc,
-                            help: `Add @interface decorator to '${iface}' or remove the implements clause`,
+                            help: `A construct must be marked @interface to be implemented. Fix:
+
+  ${kind} ${iface} @interface {
+    /* contract fields that implementors must provide */
+  }
+
+  ${kind} ${item.name} implements ${iface} {
+    /* must include all fields from ${iface} */
+  }
+
+  Note: @abstract and @interface cannot coexist on the same construct.`,
                         });
                     }
                 }

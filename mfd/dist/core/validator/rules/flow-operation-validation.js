@@ -60,7 +60,13 @@ export function flowOperationValidation(doc) {
                     severity: "error",
                     message: `Flow '${flow.name}' step '${actionName}' is not a declared operation`,
                     location: fs.loc,
-                    help: `Declare 'operation ${actionName}(...)' or check the name`,
+                    help: `This error only appears when the model declares operations (strict mode). Each flow step must reference a declared operation. Fix:
+
+  operation ${actionName}(InputType) -> OutputType {
+    # description
+  }
+
+  Or if '${actionName}' is not an operation, remove the arrow: use '${actionName}' as a semantic comment instead of '-> ${actionName}(...)'.`,
                 });
             }
             // Branch actions

@@ -47,7 +47,34 @@ export function actionCompleteness(doc) {
                 severity: "error",
                 message: `Action '${action.name}' cannot have both 'calls' (imperative) and reactive trigger ('on STREAM' / 'on Signal') — choose one pattern`,
                 location: action.loc,
-                help: "Split into two actions: one imperative (calls) and one reactive (on STREAM / on Signal)",
+                help: `Actions have 4 mutually exclusive patterns — pick ONE per action:
+
+  # 1. Imperative (calls endpoint)
+  action criar_item(Input) {
+    from MinhaScreen
+    calls POST /api/items
+    | sucesso -> OutraScreen
+  }
+
+  # 2. Reactive STREAM (server-sent events)
+  action refresh_lista {
+    from MinhaScreen
+    on STREAM /api/items/events
+    | atualizado -> MinhaScreen
+  }
+
+  # 3. Reactive Signal (client-side)
+  action on_theme {
+    from MinhaScreen
+    on ThemeChanged
+    | dark -> MinhaScreen
+  }
+
+  # 4. Pure (no calls, no reactive)
+  action ir_config {
+    from MinhaScreen
+    | ok -> ConfigScreen
+  }`,
             });
         }
         if (hasOnStream && hasOnSignal) {
@@ -56,7 +83,21 @@ export function actionCompleteness(doc) {
                 severity: "error",
                 message: `Action '${action.name}' cannot have both 'on STREAM' and 'on Signal' — choose one reactive source`,
                 location: action.loc,
-                help: "Use 'on STREAM' for server-sent events or 'on Signal' for client-side signals, not both",
+                help: `'on STREAM' and 'on Signal' are different reactive sources — use one per action:
+
+  # STREAM = server-sent events (requires STREAM endpoint in api block)
+  action listen_orders {
+    from OrderList
+    on STREAM /api/orders/events    # server pushes events
+    | update -> OrderList
+  }
+
+  # Signal = client-side event (requires signal declaration)
+  action on_theme {
+    from Dashboard
+    on ThemeChanged                 # client-side signal
+    | dark -> Dashboard
+  }`,
             });
         }
         for (const item of action.body) {

@@ -51,7 +51,15 @@ export function ruleCompleteness(doc) {
                         severity: "error",
                         message: `Rule '${rule.name}' has 'elseif' after 'else' — 'else' must be the last clause`,
                         location: item.loc,
-                        help: "Move 'else' to be the last clause",
+                        help: `Correct clause order: when -> then -> elseif -> then -> else. Example:
+
+  rule ${rule.name} {
+    when condition_a
+    then action_a("msg")
+    elseif condition_b
+    then action_b("msg")
+    else fallback("msg")
+  }`,
                     });
                 }
             }
@@ -89,7 +97,7 @@ export function ruleCompleteness(doc) {
                         severity: "error",
                         message: `Rule '${rule.name}' has clauses after 'else' — 'else' must be the last clause`,
                         location: item.loc,
-                        help: "Move 'else' to be the last clause",
+                        help: `Correct clause order: when -> then -> [elseif -> then]* -> else. The 'else' clause must always be last.`,
                     });
                 }
             }

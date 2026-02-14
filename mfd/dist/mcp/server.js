@@ -7,14 +7,16 @@
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleQuery, handlePrompt, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, } from "./tools/index.js";
+import { handleListResources, handleReadResource, } from "./resources/index.js";
 const server = new Server({
     name: "mfd-tools",
     version: "0.1.0",
 }, {
     capabilities: {
         tools: {},
+        resources: {},
     },
 });
 // --- Tool Definitions ---
@@ -264,6 +266,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
     ],
 }));
+// --- Resource Handlers ---
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return handleListResources();
+});
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    return handleReadResource(request.params.uri);
+});
 // --- Tool Dispatch ---
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;

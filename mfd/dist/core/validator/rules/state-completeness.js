@@ -19,9 +19,16 @@ export function stateCompleteness(doc) {
                 severity: "error",
                 message: `State '${state.name}' references enum '${state.enumRef}' which is not defined`,
                 location: state.loc,
-                help: model.enums.length > 0
-                    ? `Available enums: ${model.enums.map((e) => e.name).join(", ")}`
-                    : undefined,
+                help: `State machines require a matching enum declaration. Correct pattern:
+
+  enum ${state.enumRef} { value1, value2, value3 }
+
+  state ${state.name} : ${state.enumRef} {
+    value1 -> value2 : on SomeEvent
+    value2 -> value3 : on AnotherEvent
+  }` + (model.enums.length > 0
+                    ? `\n\nAvailable enums: ${model.enums.map((e) => e.name).join(", ")}`
+                    : ""),
             });
             continue;
         }
@@ -33,7 +40,7 @@ export function stateCompleteness(doc) {
                     severity: "error",
                     message: `State '${transition.from}' is not a value of enum '${state.enumRef}'`,
                     location: transition.loc,
-                    help: `Valid states: ${[...values].join(", ")}`,
+                    help: `State names must exactly match enum values (case-sensitive). Valid values for ${state.enumRef}: ${[...values].join(", ")}`,
                 });
             }
             // Check 'to' state
@@ -43,7 +50,7 @@ export function stateCompleteness(doc) {
                     severity: "error",
                     message: `State '${transition.to}' is not a value of enum '${state.enumRef}'`,
                     location: transition.loc,
-                    help: `Valid states: ${[...values].join(", ")}`,
+                    help: `State names must exactly match enum values (case-sensitive). Valid values for ${state.enumRef}: ${[...values].join(", ")}`,
                 });
             }
         }
