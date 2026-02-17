@@ -39,7 +39,7 @@ VALIDATION=$("$MFD_CLI" validate "$FILE_PATH" 2>&1)
 EXIT_CODE=$?
 
 if [[ $EXIT_CODE -ne 0 ]]; then
-  cat <<PROMPT
+  cat >&2 <<PROMPT
 [MFD — Validacao Obrigatoria ANTES de renderizar/visualizar]
 
 O arquivo $FILE_PATH tem ERROS de validacao. Voce DEVE corrigir antes de continuar.
