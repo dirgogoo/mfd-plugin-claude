@@ -116,7 +116,7 @@ export function renderComponentDetail(snapshot, componentName) {
     // API tab — interactive graph
     if (apis.length > 0) {
         const endpointCount = apis.reduce((sum, a) => sum + a.endpoints.length, 0);
-        const apiGraphData = buildApiGraphData(apis, operations, actions, componentName, snapshot, entityComponentMap, enumNames);
+        const apiGraphData = buildApiGraphData(apis, operations, flows, actions, componentName, snapshot, entityComponentMap, enumNames);
         const apiGraphCards = buildApiGraphHtml(apiGraphData);
         tabs.push({ id: "api", label: "API", count: endpointCount, diagram: null, cards: apiGraphCards });
     }
@@ -1391,7 +1391,7 @@ function buildStateGraphHtml(graphData) {
     <div class="scope-state-graph-world"></div>
   </div>`;
 }
-function buildApiGraphData(apis, operations, actions, componentName, snapshot, entityComponentMap, enumNames) {
+function buildApiGraphData(apis, operations, flows, actions, componentName, snapshot, entityComponentMap, enumNames) {
     const ccMap = snapshot.constructComponentMap;
     const allEventNames = new Set(snapshot.model.events.map((e) => e.name));
     const endpoints = [];
@@ -1487,6 +1487,31 @@ function buildApiGraphData(apis, operations, actions, componentName, snapshot, e
                 });
             }
             addEdge({ from: opId, to: matched.id, label: "calls", edgeType: "calls" });
+        }
+    }
+    // Phase 2b: Match flows → endpoints via handles
+    for (const flow of flows) {
+        const handlesClauses = flow.body.filter((i) => i.type === "OperationHandlesClause");
+        for (const clause of handlesClauses) {
+            const method = clause.method;
+            const path = clause.path;
+            const matched = resolvedEndpoints.find((ep) => ep.method === method && ep.fullPath === path);
+            if (!matched)
+                continue;
+            const flowId = `handler:${flow.name}`;
+            if (!handlerMap.has(flowId)) {
+                const params = flow.params.map((p) => formatType(p)).join(", ");
+                const ret = flow.returnType ? formatType(flow.returnType) : "void";
+                handlerMap.set(flowId, {
+                    id: flowId, name: flow.name,
+                    href: constructLink(componentName, "flow", flow.name),
+                    implChip: renderImplChip(flow.decorators),
+                    constructType: "flow",
+                    signature: `(${params}) -> ${ret}`,
+                    direction: "handles",
+                });
+            }
+            addEdge({ from: flowId, to: matched.id, label: "handles", edgeType: "handles" });
         }
     }
     // Phase 3: Match actions → endpoints via calls/on-stream

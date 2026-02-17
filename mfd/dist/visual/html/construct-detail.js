@@ -1050,6 +1050,26 @@ function renderApiDetail(snapshot, componentName, apiName, entityComponentMap, r
                         : escapeHtml(op.name);
                     handlerRows.push(`<tr>
             <td>${link}</td>
+            <td><span class="scope-chip" style="background: var(--scope-accent-muted); color: var(--scope-accent); border: 1px solid var(--scope-border); font-size: 10px">operation</span></td>
+            <td>${methodChip(matched.method)} <span class="scope-mono" style="font-size: var(--scope-text-xs)">${escapeHtml(matched.fullPath)}</span></td>
+          </tr>`);
+                }
+            }
+        }
+    }
+    for (const flow of snapshot.model.flows) {
+        for (const item of flow.body) {
+            if (item.type === "OperationHandlesClause") {
+                const clause = item;
+                const matched = resolvedPaths.find((rp) => rp.method === clause.method && rp.fullPath === clause.path);
+                if (matched) {
+                    const flowComp = ccMap.get(`flow:${flow.name}`);
+                    const link = flowComp
+                        ? `<a href="${constructLink(flowComp, 'flow', flow.name)}" class="scope-construct-link">${escapeHtml(flow.name)}</a>`
+                        : escapeHtml(flow.name);
+                    handlerRows.push(`<tr>
+            <td>${link}</td>
+            <td><span class="scope-chip" style="background: var(--scope-accent-muted); color: var(--scope-accent); border: 1px solid var(--scope-border); font-size: 10px">flow</span></td>
             <td>${methodChip(matched.method)} <span class="scope-mono" style="font-size: var(--scope-text-xs)">${escapeHtml(matched.fullPath)}</span></td>
           </tr>`);
                 }
@@ -1058,9 +1078,9 @@ function renderApiDetail(snapshot, componentName, apiName, entityComponentMap, r
     }
     const handlersHtml = handlerRows.length > 0
         ? `<div class="scope-construct-section">
-        <div class="scope-construct-section-title">Handlers (operations)</div>
+        <div class="scope-construct-section-title">Handlers (${handlerRows.length})</div>
         <table class="scope-construct-table">
-          <thead><tr><th>Operation</th><th>Endpoint</th></tr></thead>
+          <thead><tr><th>Name</th><th>Type</th><th>Endpoint</th></tr></thead>
           <tbody>${handlerRows.join("")}</tbody>
         </table>
       </div>`

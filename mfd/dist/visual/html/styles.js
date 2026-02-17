@@ -4001,6 +4001,14 @@ path.scope-graph-edge-override {
   border-color: var(--scope-type-operation);
   box-shadow: 0 0 0 1px var(--scope-type-operation), var(--scope-shadow-md);
 }
+.scope-api-handler-node--flow {
+  border-color: var(--scope-type-flow);
+}
+.scope-api-handler-node--flow .scope-node-type { color: var(--scope-type-flow); }
+.scope-api-handler-node--flow:hover {
+  border-color: var(--scope-type-flow);
+  box-shadow: 0 0 0 1px var(--scope-type-flow), var(--scope-shadow-md);
+}
 
 .scope-api-handler-sig {
   font-size: 10px;

@@ -19,6 +19,11 @@ function normalizePath(p) {
  * FLOW_CALLS_FORBIDDEN: flows cannot use 'calls' — only operations can consume endpoints.
  *   Flows can receive endpoints with 'handles', but cannot consume them with 'calls'.
  *
+ * API_ENDPOINT_ORPHAN: API endpoint has no flow or operation handling it.
+ *   Every non-@external API endpoint should have a flow or operation with
+ *   'handles METHOD /path' connecting it. APIs don't connect to entities directly —
+ *   the chain is: API → Flow/Operation (handles) → Entity (params/return).
+ *
  * RULE_ORPHAN: Warning when a rule has no operation enforcing it
  * (only when model has >= 1 operation — opt-in).
  */
@@ -129,6 +134,48 @@ export function operationCompleteness(doc) {
                     location: item.loc,
                     help: "Move 'calls' to an operation, or use 'handles' if this flow serves the endpoint",
                 });
+            }
+        }
+    }
+    // API_ENDPOINT_ORPHAN: API endpoint has no flow or operation handling it.
+    // Only checked for non-@external APIs, and only when model has flows or operations.
+    if (model.flows.length > 0 || model.operations.length > 0) {
+        // Collect all handled endpoints from flows and operations
+        const handledEndpoints = new Set();
+        for (const op of model.operations) {
+            for (const item of op.body) {
+                if (item.type === "OperationHandlesClause") {
+                    handledEndpoints.add(`${item.method} ${normalizePath(item.path)}`);
+                }
+            }
+        }
+        for (const flow of model.flows) {
+            for (const item of flow.body) {
+                if (item.type === "OperationHandlesClause") {
+                    handledEndpoints.add(`${item.method} ${normalizePath(item.path)}`);
+                }
+            }
+        }
+        for (const api of model.apis) {
+            // Skip @external APIs — they are consumed, not served
+            if (api.decorators.some((d) => d.name === "external"))
+                continue;
+            const prefixDeco = api.decorators.find((d) => d.name === "prefix");
+            const prefixVal = prefixDeco?.params[0]
+                ? String(prefixDeco.params[0].value)
+                : "";
+            for (const ep of api.endpoints) {
+                const fullPath = normalizePath(prefixVal + ep.path);
+                const key = `${ep.method} ${fullPath}`;
+                if (!handledEndpoints.has(key)) {
+                    diagnostics.push({
+                        code: "API_ENDPOINT_ORPHAN",
+                        severity: "warning",
+                        message: `API endpoint '${ep.method} ${fullPath}' has no flow or operation handling it. Add 'handles ${ep.method} ${fullPath}' to the responsible flow or operation`,
+                        location: ep.loc || api.loc,
+                        help: `Add 'handles ${ep.method} ${fullPath}' inside the flow or operation that serves this endpoint`,
+                    });
+                }
             }
         }
     }
