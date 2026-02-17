@@ -91,7 +91,7 @@ export function renderComponentDetail(snapshot, componentName) {
     const tabs = [];
     // Overview tab — compact header with progress bars + interactive overview graph
     const overviewHeader = buildOverviewHeader(compStats, totalConstructs);
-    const overviewGraphData = buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, actions, componentName, snapshot, ccMap);
+    const overviewGraphData = buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, actions, operations, componentName, snapshot, ccMap);
     const overviewGraphHtml = buildOverviewGraphHtml(overviewGraphData);
     tabs.push({ id: "overview", label: "Overview", count: totalConstructs, diagram: null, cards: overviewHeader + overviewGraphHtml });
     // Entities tab — interactive graph
@@ -217,7 +217,7 @@ function buildOverviewHeader(compStats, totalConstructs) {
   </div>`;
 }
 const DATA_TYPES = new Set(["entity", "event", "signal"]);
-function buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, actions, componentName, snapshot, ccMap) {
+function buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, actions, operations, componentName, snapshot, ccMap) {
     const nodes = [];
     const edges = [];
     const edgeSet = new Set();
@@ -474,20 +474,49 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
         });
         nodeIds.add(id);
     }
-    // Operations emitting cross-component events
-    const opsLocal = snapshot.model.operations.filter((o) => ccMap.get(`operation:${o.name}`) === componentName);
-    for (const op of opsLocal) {
+    // Operations emitting events — trace through to calling flows
+    // Operations are not shown as nodes in the overview, so we connect
+    // the flows that USE them to the events they EMIT.
+    for (const op of operations) {
+        if (!op.body)
+            continue;
         for (const item of op.body) {
             if (item.type === "EmitsClause") {
                 const evName = item.event;
                 const evComp = ccMap.get(`event:${evName}`);
-                if (evComp && evComp !== componentName) {
+                if (!evComp)
+                    continue;
+                // Cross-component: add ghost node for the foreign event
+                if (evComp !== componentName) {
                     addGhostNode("event", evName, evComp);
+                }
+                // Local or cross-component: connect calling flows to the event
+                if (nodeIds.has(`event:${evName}`)) {
                     const opRel = rels.get(makeKey(componentName, "operation", op.name));
                     if (opRel) {
                         for (const flowRef of opRel.usedByFlows) {
                             if (flowRef.component === componentName && nodeIds.has(`flow:${flowRef.name}`)) {
                                 addEdge("flow", flowRef.name, "event", evName, "flow-event");
+                            }
+                        }
+                    }
+                }
+            }
+            // Operations triggered by events (on clause)
+            if (item.type === "OnClause") {
+                const evName = item.event;
+                const evComp = ccMap.get(`event:${evName}`);
+                if (!evComp)
+                    continue;
+                if (evComp !== componentName) {
+                    addGhostNode("event", evName, evComp);
+                }
+                if (nodeIds.has(`event:${evName}`)) {
+                    const opRel = rels.get(makeKey(componentName, "operation", op.name));
+                    if (opRel) {
+                        for (const flowRef of opRel.usedByFlows) {
+                            if (flowRef.component === componentName && nodeIds.has(`flow:${flowRef.name}`)) {
+                                addEdge("event", evName, "flow", flowRef.name, "event-flow");
                             }
                         }
                     }
