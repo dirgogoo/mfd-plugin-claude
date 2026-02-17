@@ -1805,16 +1805,38 @@ a:hover, .scope-construct-link:hover {
 
 /* ===== CONSTRUCT DETAIL (Level 3) ===== */
 .scope-construct-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--scope-space-6);
-  max-width: 900px;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  grid-template-rows: auto 1fr;
+  gap: var(--scope-space-4);
 }
 
 .scope-construct-header {
+  grid-column: 1 / -1;
   background: var(--scope-elevated);
   border: 1px solid var(--scope-border);
   padding: var(--scope-space-4) var(--scope-space-5);
+}
+
+.scope-construct-sidebar {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--scope-space-4);
+  min-width: 0;
+  position: sticky;
+  top: var(--scope-space-4);
+  align-self: start;
+}
+
+@media (max-width: 900px) {
+  .scope-construct-detail {
+    grid-template-columns: 1fr;
+  }
+  .scope-construct-header {
+    grid-column: 1;
+  }
 }
 
 .scope-construct-header-top {
@@ -1852,9 +1874,12 @@ a:hover, .scope-construct-link:hover {
 }
 
 .scope-construct-body {
+  grid-column: 1;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   gap: var(--scope-space-4);
+  min-width: 0;
 }
 
 .scope-construct-section {

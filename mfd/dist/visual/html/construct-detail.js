@@ -331,8 +331,10 @@ function renderEntityDetail(snapshot, componentName, entityName, entityComponent
     </div>
   </div>
 
-  ${renderRelationshipDiagram("entity", entityName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("entity", entityName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 // ===== Enum Detail =====
@@ -353,8 +355,10 @@ function renderEnumDetail(snapshot, componentName, enumName, rels) {
       <div>${values}</div>
     </div>
   </div>
-  ${renderRelationshipDiagram("enum", enumName, rels, snapshot)}
-  ${relationshipPanel(rels, new Map())}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("enum", enumName, rels, snapshot)}
+    ${relationshipPanel(rels, new Map())}
+  </div>
 </div>`;
 }
 // ===== Flow Detail =====
@@ -448,8 +452,10 @@ function renderFlowDetail(snapshot, componentName, flowName, entityComponentMap,
     </div>
   </div>
 
-  ${renderRelationshipDiagram("flow", flowName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("flow", flowName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 function linkifyFlowAction(actionHtml, entityComponentMap, snapshot) {
@@ -510,8 +516,10 @@ function renderStateDetail(snapshot, componentName, stateName, entityComponentMa
     </div>
   </div>
 
-  ${renderRelationshipDiagram("state", stateName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("state", stateName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 // ===== Event Detail =====
@@ -541,8 +549,10 @@ function renderEventDetail(snapshot, componentName, eventName, entityComponentMa
     </div>
   </div>
 
-  ${renderRelationshipDiagram("event", eventName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("event", eventName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 // ===== Signal Detail =====
@@ -572,8 +582,10 @@ function renderSignalDetail(snapshot, componentName, signalName, entityComponent
     </div>
   </div>
 
-  ${renderRelationshipDiagram("signal", signalName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("signal", signalName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 // ===== Rule Detail =====
@@ -608,8 +620,10 @@ function renderRuleDetail(snapshot, componentName, ruleName, rels) {
     </div>
   </div>
 
-  ${renderRelationshipDiagram("rule", ruleName, rels, snapshot)}
-  ${relationshipPanel(rels, new Map())}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("rule", ruleName, rels, snapshot)}
+    ${relationshipPanel(rels, new Map())}
+  </div>
 </div>`;
 }
 // ===== Element Detail =====
@@ -648,8 +662,10 @@ function renderElementDetail(snapshot, componentName, elementName, entityCompone
     ${formsHtml}
   </div>
 
-  ${renderRelationshipDiagram("element", elementName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("element", elementName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 // ===== Screen Detail =====
@@ -679,8 +695,10 @@ function renderScreenDetail(snapshot, componentName, screenName, entityComponent
     ${formsHtml}
   </div>
 
-  ${renderRelationshipDiagram("screen", screenName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("screen", screenName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 // ===== Journey Detail =====
@@ -730,8 +748,10 @@ function renderJourneyDetail(snapshot, componentName, journeyName, rels) {
     </div>
   </div>
 
-  ${renderRelationshipDiagram("journey", journeyName, rels, snapshot)}
-  ${relationshipPanel(rels, new Map())}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("journey", journeyName, rels, snapshot)}
+    ${relationshipPanel(rels, new Map())}
+  </div>
 </div>`;
 }
 // ===== Operation Detail =====
@@ -839,8 +859,10 @@ function renderOperationDetail(snapshot, componentName, operationName, entityCom
     ${enforcesHtml}
   </div>
 
-  ${renderRelationshipDiagram("operation", operationName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("operation", operationName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 // ===== Action Detail =====
@@ -918,8 +940,10 @@ function renderActionDetail(snapshot, componentName, actionName, rels) {
     ${resultsHtml}
   </div>
 
-  ${renderRelationshipDiagram("action", actionName, rels, snapshot)}
-  ${relationshipPanel(rels, new Map())}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("action", actionName, rels, snapshot)}
+    ${relationshipPanel(rels, new Map())}
+  </div>
 </div>`;
 }
 // ===== API Detail =====
@@ -1108,8 +1132,10 @@ function renderApiDetail(snapshot, componentName, apiName, entityComponentMap, r
     ${commentHtml}
   </div>
 
-  ${renderRelationshipDiagram("api", apiName, rels, snapshot)}
-  ${relationshipPanel(rels, entityComponentMap)}
+  <div class="scope-construct-sidebar">
+    ${renderRelationshipDiagram("api", apiName, rels, snapshot)}
+    ${relationshipPanel(rels, entityComponentMap)}
+  </div>
 </div>`;
 }
 //# sourceMappingURL=construct-detail.js.map
