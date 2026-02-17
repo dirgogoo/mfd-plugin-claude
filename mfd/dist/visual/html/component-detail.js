@@ -25,21 +25,26 @@ export function renderComponentDetail(snapshot, componentName) {
     const ccMap = snapshot.constructComponentMap;
     const entityComponentMap = buildEntityComponentMap(snapshot.model, ccMap);
     const enumNames = new Set(snapshot.model.enums.map((e) => e.name));
+    // When @interface components are implemented, the ccMap may map shared construct
+    // names (e.g. adapter_connect) to the implementing component instead of the interface.
+    // Use comp.body reference equality as a fallback to ensure each component sees its own constructs.
+    const bodyItemSet = new Set(comp.body);
+    const ownedOrInBody = (type, name, item) => ccMap.get(`${type}:${name}`) === componentName || bodyItemSet.has(item);
     const deps = comp.body.filter((b) => b.type === "DepDecl");
     const secrets = comp.body.filter((b) => b.type === "SecretDecl");
-    const entities = snapshot.model.entities.filter((e) => ccMap.get(`entity:${e.name}`) === componentName);
-    const enums = snapshot.model.enums.filter((e) => ccMap.get(`enum:${e.name}`) === componentName);
-    const flows = snapshot.model.flows.filter((f) => ccMap.get(`flow:${f.name}`) === componentName);
+    const entities = snapshot.model.entities.filter((e) => ownedOrInBody("entity", e.name, e));
+    const enums = snapshot.model.enums.filter((e) => ownedOrInBody("enum", e.name, e));
+    const flows = snapshot.model.flows.filter((f) => ownedOrInBody("flow", f.name, f));
     // APIs are filtered directly from the component body since multiple APIs
     // can share the same name (e.g. "REST") making ccMap lookup unreliable
     const apis = comp.body.filter((b) => b.type === "ApiDecl");
-    const states = snapshot.model.states.filter((s) => ccMap.get(`state:${s.name}`) === componentName);
-    const events = snapshot.model.events.filter((e) => ccMap.get(`event:${e.name}`) === componentName);
-    const rules = snapshot.model.rules.filter((r) => ccMap.get(`rule:${r.name}`) === componentName);
-    const screens = snapshot.model.screens.filter((s) => ccMap.get(`screen:${s.name}`) === componentName);
-    const journeys = snapshot.model.journeys.filter((j) => ccMap.get(`journey:${j.name}`) === componentName);
-    const operations = snapshot.model.operations.filter((o) => ccMap.get(`operation:${o.name}`) === componentName);
-    const signals = snapshot.model.signals.filter((s) => ccMap.get(`signal:${s.name}`) === componentName);
+    const states = snapshot.model.states.filter((s) => ownedOrInBody("state", s.name, s));
+    const events = snapshot.model.events.filter((e) => ownedOrInBody("event", e.name, e));
+    const rules = snapshot.model.rules.filter((r) => ownedOrInBody("rule", r.name, r));
+    const screens = snapshot.model.screens.filter((s) => ownedOrInBody("screen", s.name, s));
+    const journeys = snapshot.model.journeys.filter((j) => ownedOrInBody("journey", j.name, j));
+    const operations = snapshot.model.operations.filter((o) => ownedOrInBody("operation", o.name, o));
+    const signals = snapshot.model.signals.filter((s) => ownedOrInBody("signal", s.name, s));
     const totalConstructs = entities.length + enums.length + flows.length + apis.length +
         states.length + events.length + signals.length + rules.length + screens.length + journeys.length + operations.length;
     const implRatio = compStats && compStats.implTotal > 0
@@ -48,11 +53,13 @@ export function renderComponentDetail(snapshot, componentName) {
     const testRatio = compStats && compStats.implTotal > 0
         ? `${compStats.constructs.filter((c) => c.tests).length}/${compStats.implTotal}`
         : "";
+    // Hoist actions early (needed for overview, API, and screens tabs)
+    const actions = snapshot.model.actions.filter((a) => ownedOrInBody("action", a.name, a));
     // Build tabs
     const tabs = [];
     // Overview tab — compact header with progress bars + interactive overview graph
     const overviewHeader = buildOverviewHeader(compStats, totalConstructs);
-    const overviewGraphData = buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, componentName, snapshot, ccMap);
+    const overviewGraphData = buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, actions, componentName, snapshot, ccMap);
     const overviewGraphHtml = buildOverviewGraphHtml(overviewGraphData);
     tabs.push({ id: "overview", label: "Overview", count: totalConstructs, diagram: null, cards: overviewHeader + overviewGraphHtml });
     // Entities tab — interactive graph
@@ -74,8 +81,6 @@ export function renderComponentDetail(snapshot, componentName) {
         const stateGraphHtml = buildStateGraphHtml(graphData);
         tabs.push({ id: "states", label: "States", count: states.length, color: "var(--scope-diagram-state)", diagram: null, cards: stateGraphHtml });
     }
-    // Hoist actions before API tab (needed for both API and screens)
-    const actions = snapshot.model.actions.filter((a) => ccMap.get(`action:${a.name}`) === componentName);
     // API tab — interactive graph
     if (apis.length > 0) {
         const endpointCount = apis.reduce((sum, a) => sum + a.endpoints.length, 0);
@@ -85,7 +90,7 @@ export function renderComponentDetail(snapshot, componentName) {
     }
     // Screens tab — interactive graph
     if (screens.length > 0) {
-        const elements = snapshot.model.elements.filter((e) => ccMap.get(`element:${e.name}`) === componentName);
+        const elements = snapshot.model.elements.filter((e) => ownedOrInBody("element", e.name, e));
         const screenGraphData = buildScreenGraphData(screens, elements, actions, componentName, snapshot, entityComponentMap, enumNames);
         const screenGraphHtml = buildScreenGraphHtml(screenGraphData);
         tabs.push({ id: "screens", label: "Screens", count: screens.length, color: "var(--scope-diagram-screen)", diagram: null, cards: screenGraphHtml });
@@ -180,7 +185,7 @@ function buildOverviewHeader(compStats, totalConstructs) {
   </div>`;
 }
 const DATA_TYPES = new Set(["entity", "event", "signal"]);
-function buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, componentName, snapshot, ccMap) {
+function buildOverviewGraphData(entities, flows, apis, states, events, signals, screens, actions, componentName, snapshot, ccMap) {
     const nodes = [];
     const edges = [];
     const edgeSet = new Set();
@@ -306,7 +311,6 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
         }
     }
     // 6. Screen ↔ API and Screen ↔ Signal (via actions)
-    const actions = snapshot.model.actions.filter((a) => ccMap.get(`action:${a.name}`) === componentName);
     // Build prefix map for matching action calls to APIs
     const apiPrefixMap = [];
     for (const api of apis) {

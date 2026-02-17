@@ -511,10 +511,66 @@ function buildComponentInfos(model, stats, constructComponentMap) {
         const status = statusDec ? String(statusDec.params[0]?.value ?? null) : null;
         const counts = {};
         // Count constructs assigned to this component via the map
+        const countedKeys = new Set();
         for (const [key, compName] of constructComponentMap) {
             if (compName !== comp.name)
                 continue;
+            countedKeys.add(key);
             const [type] = key.split(":");
+            switch (type) {
+                case "element":
+                    counts.elements = (counts.elements ?? 0) + 1;
+                    break;
+                case "entity":
+                    counts.entities = (counts.entities ?? 0) + 1;
+                    break;
+                case "enum":
+                    counts.enums = (counts.enums ?? 0) + 1;
+                    break;
+                case "flow":
+                    counts.flows = (counts.flows ?? 0) + 1;
+                    break;
+                case "state":
+                    counts.states = (counts.states ?? 0) + 1;
+                    break;
+                case "event":
+                    counts.events = (counts.events ?? 0) + 1;
+                    break;
+                case "signal":
+                    counts.signals = (counts.signals ?? 0) + 1;
+                    break;
+                case "rule":
+                    counts.rules = (counts.rules ?? 0) + 1;
+                    break;
+                case "screen":
+                    counts.screens = (counts.screens ?? 0) + 1;
+                    break;
+                case "journey":
+                    counts.journeys = (counts.journeys ?? 0) + 1;
+                    break;
+                case "api":
+                    counts.apis = (counts.apis ?? 0) + 1;
+                    break;
+                case "operation":
+                    counts.operations = (counts.operations ?? 0) + 1;
+                    break;
+                case "action":
+                    counts.actions = (counts.actions ?? 0) + 1;
+                    break;
+            }
+        }
+        // Also count constructs in comp.body that the ccMap assigned to a different
+        // component (happens with @interface + implements pattern where names collide)
+        for (const item of comp.body) {
+            const type = declTypeToType(item.type);
+            if (!type)
+                continue;
+            const name = item.name;
+            if (!name)
+                continue;
+            const key = type === "api" ? apiMapKey(item) : `${type}:${name}`;
+            if (countedKeys.has(key))
+                continue; // already counted via ccMap
             switch (type) {
                 case "element":
                     counts.elements = (counts.elements ?? 0) + 1;
