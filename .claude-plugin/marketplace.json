@@ -1,10 +1,9 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ducks-marketplace",
-  "version": "1.0.4",
   "description": "MFD — Model-First Development plugin marketplace",
   "owner": {
-    "name": "Ducks Tech",
+    "name": "MFD Project",
     "email": "mfd@example.com"
   },
   "plugins": [
@@ -13,19 +12,11 @@
       "description": "Model-First Development — parser, validator, diagrams, contracts, visual dashboard, and LSP for .mfd files",
       "version": "1.0.4",
       "author": {
-        "name": "Ducks Tech"
+        "name": "MFD Project",
+        "email": "mfd@example.com"
       },
       "source": "./mfd",
-      "category": "development",
-      "lspServers": {
-        "mfd-lsp": {
-          "command": "node",
-          "args": ["${CLAUDE_PLUGIN_ROOT}/dist/lsp/server.js", "--stdio"],
-          "extensionToLanguage": {
-            ".mfd": "mfd"
-          }
-        }
-      }
+      "category": "development"
     }
   ]
 }
