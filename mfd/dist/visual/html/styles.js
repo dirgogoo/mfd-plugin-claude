@@ -1806,21 +1806,28 @@ a:hover, .scope-construct-link:hover {
 /* ===== CONSTRUCT DETAIL (Level 3) ===== */
 .scope-construct-detail {
   display: grid;
-  grid-template-columns: 1fr 380px;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr 340px;
+  grid-template-rows: auto auto 1fr;
   gap: var(--scope-space-4);
 }
 
 .scope-construct-header {
   grid-column: 1 / -1;
+  grid-row: 1;
   background: var(--scope-elevated);
   border: 1px solid var(--scope-border);
   padding: var(--scope-space-4) var(--scope-space-5);
 }
 
+/* Relationship diagram — full width, between header and content */
+.scope-construct-detail > .scope-diagram-container {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
 .scope-construct-sidebar {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   display: flex;
   flex-direction: column;
   gap: var(--scope-space-4);
@@ -1834,7 +1841,8 @@ a:hover, .scope-construct-link:hover {
   .scope-construct-detail {
     grid-template-columns: 1fr;
   }
-  .scope-construct-header {
+  .scope-construct-header,
+  .scope-construct-detail > .scope-diagram-container {
     grid-column: 1;
   }
 }
@@ -1875,7 +1883,7 @@ a:hover, .scope-construct-link:hover {
 
 .scope-construct-body {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 3;
   display: flex;
   flex-direction: column;
   gap: var(--scope-space-4);

@@ -321,6 +321,8 @@ function renderEntityDetail(snapshot, componentName, entityName, entityComponent
 <div class="scope-construct-detail">
   ${detailHeader("entity", entityName, componentName, entity.decorators, entity)}
 
+  ${renderRelationshipDiagram("entity", entityName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Fields</div>
@@ -332,7 +334,6 @@ function renderEntityDetail(snapshot, componentName, entityName, entityComponent
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("entity", entityName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -349,6 +350,8 @@ function renderEnumDetail(snapshot, componentName, enumName, rels) {
     return `
 <div class="scope-construct-detail">
   ${detailHeader("enum", enumName, componentName, enumDecl.decorators)}
+  ${renderRelationshipDiagram("enum", enumName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Values</div>
@@ -356,7 +359,6 @@ function renderEnumDetail(snapshot, componentName, enumName, rels) {
     </div>
   </div>
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("enum", enumName, rels, snapshot)}
     ${relationshipPanel(rels, new Map())}
   </div>
 </div>`;
@@ -437,6 +439,8 @@ function renderFlowDetail(snapshot, componentName, flowName, entityComponentMap,
 <div class="scope-construct-detail">
   ${detailHeader("flow", flowName, componentName, flow.decorators, flow)}
 
+  ${renderRelationshipDiagram("flow", flowName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Signature</div>
@@ -453,7 +457,6 @@ function renderFlowDetail(snapshot, componentName, flowName, entityComponentMap,
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("flow", flowName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -501,6 +504,8 @@ function renderStateDetail(snapshot, componentName, stateName, entityComponentMa
 <div class="scope-construct-detail">
   ${detailHeader("state", stateName, componentName, state.decorators)}
 
+  ${renderRelationshipDiagram("state", stateName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Enum</div>
@@ -517,7 +522,6 @@ function renderStateDetail(snapshot, componentName, stateName, entityComponentMa
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("state", stateName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -539,6 +543,8 @@ function renderEventDetail(snapshot, componentName, eventName, entityComponentMa
 <div class="scope-construct-detail">
   ${detailHeader("event", eventName, componentName, event.decorators, event)}
 
+  ${renderRelationshipDiagram("event", eventName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Payload</div>
@@ -550,7 +556,6 @@ function renderEventDetail(snapshot, componentName, eventName, entityComponentMa
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("event", eventName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -572,6 +577,8 @@ function renderSignalDetail(snapshot, componentName, signalName, entityComponent
 <div class="scope-construct-detail">
   ${detailHeader("signal", signalName, componentName, signal.decorators, signal)}
 
+  ${renderRelationshipDiagram("signal", signalName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Payload</div>
@@ -583,7 +590,6 @@ function renderSignalDetail(snapshot, componentName, signalName, entityComponent
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("signal", signalName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -613,6 +619,8 @@ function renderRuleDetail(snapshot, componentName, ruleName, rels) {
 <div class="scope-construct-detail">
   ${detailHeader("rule", ruleName, componentName, rule.decorators)}
 
+  ${renderRelationshipDiagram("rule", ruleName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Clauses</div>
@@ -621,7 +629,6 @@ function renderRuleDetail(snapshot, componentName, ruleName, rels) {
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("rule", ruleName, rels, snapshot)}
     ${relationshipPanel(rels, new Map())}
   </div>
 </div>`;
@@ -657,13 +664,14 @@ function renderElementDetail(snapshot, componentName, elementName, entityCompone
 <div class="scope-construct-detail">
   ${detailHeader("element", elementName, componentName, element.decorators, element)}
 
+  ${renderRelationshipDiagram("element", elementName, rels, snapshot)}
+
   <div class="scope-construct-body">
     ${propsHtml}
     ${formsHtml}
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("element", elementName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -691,12 +699,13 @@ function renderScreenDetail(snapshot, componentName, screenName, entityComponent
 <div class="scope-construct-detail">
   ${detailHeader(`screen${layoutLabel}`, screenName, componentName, screen.decorators, screen)}
 
+  ${renderRelationshipDiagram("screen", screenName, rels, snapshot)}
+
   <div class="scope-construct-body">
     ${formsHtml}
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("screen", screenName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -737,6 +746,8 @@ function renderJourneyDetail(snapshot, componentName, journeyName, rels) {
 <div class="scope-construct-detail">
   ${detailHeader("journey", journeyName, componentName, journey.decorators)}
 
+  ${renderRelationshipDiagram("journey", journeyName, rels, snapshot)}
+
   <div class="scope-construct-body">
     ${persona ? `<div class="scope-construct-section"><div class="scope-construct-section-title">Persona</div><div class="scope-mono">${escapeHtml(persona)}</div></div>` : ""}
     <div class="scope-construct-section">
@@ -749,7 +760,6 @@ function renderJourneyDetail(snapshot, componentName, journeyName, rels) {
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("journey", journeyName, rels, snapshot)}
     ${relationshipPanel(rels, new Map())}
   </div>
 </div>`;
@@ -845,6 +855,8 @@ function renderOperationDetail(snapshot, componentName, operationName, entityCom
 <div class="scope-construct-detail">
   ${detailHeader("operation", operationName, componentName, operation.decorators)}
 
+  ${renderRelationshipDiagram("operation", operationName, rels, snapshot)}
+
   <div class="scope-construct-body">
     <div class="scope-construct-section">
       <div class="scope-construct-section-title">Signature</div>
@@ -860,7 +872,6 @@ function renderOperationDetail(snapshot, componentName, operationName, entityCom
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("operation", operationName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
@@ -931,6 +942,8 @@ function renderActionDetail(snapshot, componentName, actionName, rels) {
 <div class="scope-construct-detail">
   ${detailHeader(`action (${pattern})`, actionName, componentName, action.decorators)}
 
+  ${renderRelationshipDiagram("action", actionName, rels, snapshot)}
+
   <div class="scope-construct-body">
     ${fromHtml}
     ${callsHtml}
@@ -941,7 +954,6 @@ function renderActionDetail(snapshot, componentName, actionName, rels) {
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("action", actionName, rels, snapshot)}
     ${relationshipPanel(rels, new Map())}
   </div>
 </div>`;
@@ -1124,6 +1136,8 @@ function renderApiDetail(snapshot, componentName, apiName, entityComponentMap, r
 <div class="scope-construct-detail">
   ${detailHeader("api", apiName, componentName, api.decorators)}
 
+  ${renderRelationshipDiagram("api", apiName, rels, snapshot)}
+
   <div class="scope-construct-body">
     ${infoHtml}
     ${endpointsHtml}
@@ -1133,7 +1147,6 @@ function renderApiDetail(snapshot, componentName, apiName, entityComponentMap, r
   </div>
 
   <div class="scope-construct-sidebar">
-    ${renderRelationshipDiagram("api", apiName, rels, snapshot)}
     ${relationshipPanel(rels, entityComponentMap)}
   </div>
 </div>`;
