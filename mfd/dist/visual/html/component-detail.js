@@ -22,6 +22,23 @@ export function renderComponentDetail(snapshot, componentName) {
     const statusChip = statusValue
         ? `<span class="scope-chip ${statusValue === 'active' || statusValue === 'done' || statusValue === 'implemented' ? 'done' : statusValue === 'draft' || statusValue === 'in_progress' ? 'wip' : 'pending'}">${statusValue}</span>`
         : "";
+    // Show @interface / @abstract decorators and implements/extends relationships
+    const isInterface = comp.decorators?.some((d) => d.name === "interface");
+    const isAbstract = comp.decorators?.some((d) => d.name === "abstract");
+    const extendsName = comp.extends ?? null;
+    const implementsNames = comp.implements ?? [];
+    const interfaceChip = isInterface
+        ? `<span class="scope-chip" style="background: var(--scope-accent-muted); color: var(--scope-accent); border: 1px solid var(--scope-border)">@interface</span>`
+        : "";
+    const abstractChip = isAbstract
+        ? `<span class="scope-chip" style="background: var(--scope-accent-muted); color: var(--scope-accent); border: 1px solid var(--scope-border)">@abstract</span>`
+        : "";
+    const extendsChip = extendsName
+        ? `<span class="scope-chip" style="background: #1e1b4b; color: #a78bfa; border: 1px solid #4c1d95">extends <a href="/component/${encodeURIComponent(extendsName)}" style="color: #a78bfa; text-decoration: underline">${escapeHtml(extendsName)}</a></span>`
+        : "";
+    const implementsChips = implementsNames
+        .map((n) => `<span class="scope-chip" style="background: #1a2e1a; color: #4ade80; border: 1px solid #166534">implements <a href="/component/${encodeURIComponent(n)}" style="color: #4ade80; text-decoration: underline">${escapeHtml(n)}</a></span>`)
+        .join(" ");
     const ccMap = snapshot.constructComponentMap;
     const entityComponentMap = buildEntityComponentMap(snapshot.model, ccMap);
     const enumNames = new Set(snapshot.model.enums.map((e) => e.name));
@@ -30,21 +47,36 @@ export function renderComponentDetail(snapshot, componentName) {
     // Use comp.body reference equality as a fallback to ensure each component sees its own constructs.
     const bodyItemSet = new Set(comp.body);
     const ownedOrInBody = (type, name, item) => ccMap.get(`${type}:${name}`) === componentName || bodyItemSet.has(item);
+    // When a component implements an @interface, both declare constructs with
+    // the same name (e.g. both have "event AdapterAlarm"). Since snapshot.model.*
+    // contains entries from ALL components, the ccMap name-based check picks up
+    // both copies. Deduplicate by name to avoid showing the same construct twice.
+    function filterOwnedUnique(items, type) {
+        const seen = new Set();
+        return items.filter((item) => {
+            if (!ownedOrInBody(type, item.name, item))
+                return false;
+            if (seen.has(item.name))
+                return false;
+            seen.add(item.name);
+            return true;
+        });
+    }
     const deps = comp.body.filter((b) => b.type === "DepDecl");
     const secrets = comp.body.filter((b) => b.type === "SecretDecl");
-    const entities = snapshot.model.entities.filter((e) => ownedOrInBody("entity", e.name, e));
-    const enums = snapshot.model.enums.filter((e) => ownedOrInBody("enum", e.name, e));
-    const flows = snapshot.model.flows.filter((f) => ownedOrInBody("flow", f.name, f));
+    const entities = filterOwnedUnique(snapshot.model.entities, "entity");
+    const enums = filterOwnedUnique(snapshot.model.enums, "enum");
+    const flows = filterOwnedUnique(snapshot.model.flows, "flow");
     // APIs are filtered directly from the component body since multiple APIs
     // can share the same name (e.g. "REST") making ccMap lookup unreliable
     const apis = comp.body.filter((b) => b.type === "ApiDecl");
-    const states = snapshot.model.states.filter((s) => ownedOrInBody("state", s.name, s));
-    const events = snapshot.model.events.filter((e) => ownedOrInBody("event", e.name, e));
-    const rules = snapshot.model.rules.filter((r) => ownedOrInBody("rule", r.name, r));
-    const screens = snapshot.model.screens.filter((s) => ownedOrInBody("screen", s.name, s));
-    const journeys = snapshot.model.journeys.filter((j) => ownedOrInBody("journey", j.name, j));
-    const operations = snapshot.model.operations.filter((o) => ownedOrInBody("operation", o.name, o));
-    const signals = snapshot.model.signals.filter((s) => ownedOrInBody("signal", s.name, s));
+    const states = filterOwnedUnique(snapshot.model.states, "state");
+    const events = filterOwnedUnique(snapshot.model.events, "event");
+    const rules = filterOwnedUnique(snapshot.model.rules, "rule");
+    const screens = filterOwnedUnique(snapshot.model.screens, "screen");
+    const journeys = filterOwnedUnique(snapshot.model.journeys, "journey");
+    const operations = filterOwnedUnique(snapshot.model.operations, "operation");
+    const signals = filterOwnedUnique(snapshot.model.signals, "signal");
     const totalConstructs = entities.length + enums.length + flows.length + apis.length +
         states.length + events.length + signals.length + rules.length + screens.length + journeys.length + operations.length;
     const implRatio = compStats && compStats.implTotal > 0
@@ -143,7 +175,7 @@ export function renderComponentDetail(snapshot, componentName) {
 <div class="scope-component-detail">
   <div class="scope-component-header">
     <span class="scope-component-name">${escapeHtml(componentName)}</span>
-    ${statusChip}
+    ${statusChip}${interfaceChip}${abstractChip}${extendsChip}${implementsChips}
   </div>
   <div class="scope-component-meta">
     ${implRatio ? `<span class="scope-mono" style="font-size: var(--scope-text-sm); color: var(--scope-text-secondary)">impl: ${implRatio}</span>` : ""}
@@ -190,13 +222,18 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
     const edges = [];
     const edgeSet = new Set();
     const rels = snapshot.relationships;
+    const addedNodeIds = new Set();
     function addNode(type, name, decorators) {
+        const id = `${type}:${name}`;
+        if (addedNodeIds.has(id))
+            return;
+        addedNodeIds.add(id);
         const category = DATA_TYPES.has(type) ? "data" : "behavior";
         const implChip = renderImplChip(decorators);
         const isAbstract = decorators?.some((d) => d.name === "abstract") ?? false;
         const isInterface = decorators?.some((d) => d.name === "interface") ?? false;
         nodes.push({
-            id: `${type}:${name}`,
+            id,
             name,
             href: constructLink(componentName, type, name),
             implChip,
@@ -232,8 +269,8 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
         addNode("event", e.name, e.decorators);
     for (const s of signals)
         addNode("signal", s.name, s.decorators);
-    // Build node lookup for quick existence checks
-    const nodeIds = new Set(nodes.map(n => n.id));
+    // Reuse the dedup set as the node lookup for ghost-node checks
+    const nodeIds = addedNodeIds;
     const entityNames = new Set(entities.map((e) => e.name));
     // Helper: extract named type references from a type expression
     function extractTypeRefs(typeExpr) {
