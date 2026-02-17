@@ -6,7 +6,8 @@ const SKIP_ACTIONS = new Set(["emit", "return"]);
  * Only active when the model declares >= 1 operation (opt-in).
  *
  * FLOW_TRIGGER_UNRESOLVED: `on EventName` in flow body must reference a declared event.
- * FLOW_EMITS_UNRESOLVED: `emits EventName` in flow body must reference a declared event.
+ * FLOW_EMITS_FORBIDDEN: flows cannot emit events — only operations can.
+ * FLOW_EMIT_STEP_FORBIDDEN: `-> emit(Evento)` in flows is not allowed — only operations can emit.
  */
 export function flowOperationValidation(doc) {
     const model = collectModel(doc);
@@ -27,14 +28,27 @@ export function flowOperationValidation(doc) {
                 }
             }
             if (item.type === "EmitsClause") {
-                if (!eventNames.has(item.event)) {
-                    diagnostics.push({
-                        code: "FLOW_EMITS_UNRESOLVED",
-                        severity: "error",
-                        message: `Flow '${flow.name}' emits undeclared event '${item.event}'`,
-                        location: item.loc,
-                        help: `Declare 'event ${item.event} { ... }' or check the name`,
-                    });
+                diagnostics.push({
+                    code: "FLOW_EMITS_FORBIDDEN",
+                    severity: "error",
+                    message: `Flow '${flow.name}' cannot emit event '${item.event}' — only operations can emit events`,
+                    location: item.loc,
+                    help: `Move 'emits ${item.event}' to an operation that the flow calls.\n\n  operation do_something(Input) -> Output {\n    emits ${item.event}\n  }\n\n  flow ${flow.name}(...) -> ... {\n    -> do_something(...)\n  }`,
+                });
+            }
+            if (item.type === "FlowStep") {
+                const fs = item;
+                if (fs.hasArrow) {
+                    const actionName = fs.action.trim().split(/[\s(]/)[0];
+                    if (actionName === "emit") {
+                        diagnostics.push({
+                            code: "FLOW_EMIT_STEP_FORBIDDEN",
+                            severity: "error",
+                            message: `Flow '${flow.name}' step '-> emit(${fs.args || "..."})' is not allowed — only operations can emit events`,
+                            location: fs.loc,
+                            help: `Replace the emit step with a call to an operation that emits the event.`,
+                        });
+                    }
                 }
             }
         }

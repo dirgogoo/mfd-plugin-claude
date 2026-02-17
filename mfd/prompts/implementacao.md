@@ -20,9 +20,16 @@ Quando o modelo usa `import` (multiplos arquivos `.mfd`):
 
 1. **Leia `main.mfd` primeiro** para entender a estrutura geral e quais componentes existem
 2. **Leia APENAS o arquivo do componente sendo implementado** (ex: `auth.mfd` se implementando Auth)
-3. **Leia `shared.mfd` somente se necessario** para tipos compartilhados referenciados pelo componente
-4. **NAO leia todos os arquivos** — foque no escopo do componente atual
-5. **Para validacao/parse, passe `main.mfd`** — o CLI auto-resolve imports
+3. **Leia `shared.mfd` somente se necessario** para tipos do Vocabulario Compartilhado (enums, @abstract, @interface)
+4. **Leia componentes compartilhados** (ex: `protocolo.mfd`) se o componente consome ou emite events/signals de integracao
+5. **NAO leia todos os arquivos** — foque no escopo do componente atual
+6. **Para validacao/parse, passe `main.mfd`** — o CLI auto-resolve imports
+
+### Identificando Componentes Compartilhados
+
+- `shared.mfd` **sem** `component` block = Vocabulario Compartilhado (enums, tipos base)
+- Arquivo **com** `component Protocol` (ou similar) = Protocolo de integracao (events, signals, state machines de integracao)
+- Se o componente sendo implementado usa `on EventName` ou `emits EventName`, verifique se o event esta no componente Protocol
 
 ## Mapping Construto -> Padrao de Codigo
 

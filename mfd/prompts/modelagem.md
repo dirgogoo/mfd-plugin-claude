@@ -104,6 +104,9 @@ Apos gerar o modelo, verifique:
 - [ ] Todo element com `extends` referencia element @abstract
 - [ ] Todo element com `implements` cumpre contrato da interface (todas as props obrigatorias)
 - [ ] Todo element `uses` em screen referencia element declarado
+- [ ] Construtos compartilhados seguem padrao correto (vocabulario em shared.mfd, protocolo em component compartilhado)
+- [ ] Nenhum componente e God Core (60%+ dos construtos centralizados em um unico componente)
+- [ ] Entidades gerenciadas ficam no componente gerenciador (Principio de Propriedade)
 
 ## Estrutura Multi-Arquivo
 
@@ -112,7 +115,8 @@ Para projetos com 3+ componentes ou 200+ linhas, gere estrutura multi-arquivo:
 ```
 model/
   main.mfd              # system "Nome" + imports (entry point)
-  shared.mfd            # Entidades/enums usados por 2+ componentes
+  shared.mfd            # Vocabulario Compartilhado: enums, @abstract, @interface (opcional)
+  protocolo.mfd         # Componente Protocolo: events de integracao (opcional)
   <componente>.mfd      # Um arquivo por componente (kebab-case)
 ```
 
@@ -120,6 +124,7 @@ model/
 ```mfd
 system "Nome" @version(1.0) {
   import "shared"
+  import "protocolo"
   import "auth"
   import "catalogo"
   import "pedidos"
@@ -129,9 +134,34 @@ system "Nome" @version(1.0) {
 ### Regras
 - `main.mfd` contem APENAS system declaration + imports
 - Cada componente em arquivo separado com UM `component` block
-- `shared.mfd` para entidades/enums referenciados por multiplos componentes
+- `shared.mfd` para vocabulario compartilhado (enums, @abstract, @interface) — SEM `component` block
+- Componente compartilhado (ex: `protocolo.mfd`) para events/signals/state machines de integracao — COM `component` block
+- Entidades gerenciadas ficam no componente gerenciador (Principio de Propriedade)
 - Kebab-case nos nomes: `FichaTecnica` -> `ficha-tecnica.mfd`
 - Para < 3 componentes E < 200 linhas, single-file e aceitavel
+
+### Padroes de Compartilhamento
+
+Ao decidir onde posicionar cada construto em multi-arquivo:
+
+```
+enum compartilhado?              -> shared.mfd (sem component)
+entity @abstract ou @interface?  -> shared.mfd (sem component)
+entity concreta (gerenciada)?    -> <componente-gerenciador>.mfd
+event/signal de integracao?      -> protocolo.mfd (component Protocol)
+event/signal interno?            -> <componente>.mfd
+state machine de integracao?     -> protocolo.mfd (component Protocol)
+state machine local?             -> <componente>.mfd
+flow/operation/rule/api?         -> SEMPRE <componente>.mfd
+screen/action/journey/element?   -> SEMPRE <componente>.mfd
+```
+
+### Anti-padrao God Core
+
+Se um componente contem 60%+ dos construtos do sistema (todas as entities, enums, events e state machines), e um God Core. Redistribua:
+- Entidades gerenciadas voltam para o componente gerenciador
+- Events de integracao vao para um componente Protocol
+- Enums e tipos base abstratos ficam em shared.mfd (sem component)
 
 ## Padrao de Resposta
 

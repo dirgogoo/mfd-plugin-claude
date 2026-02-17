@@ -38,7 +38,9 @@ function resolveDocument(doc, baseDir, visited, files, errors) {
     const newBody = [];
     for (const item of doc.body) {
         if (item.type === "SystemDecl") {
-            const resolvedSystem = resolveSystem(item, baseDir, visited, files, errors);
+            const { system: resolvedSystem, hoisted } = resolveSystem(item, baseDir, visited, files, errors);
+            // Hoisted items (shared enums/entities from files without component block) go BEFORE the system
+            newBody.push(...hoisted);
             newBody.push(resolvedSystem);
         }
         else if (item.type === "IncludeDecl") {
@@ -53,6 +55,7 @@ function resolveDocument(doc, baseDir, visited, files, errors) {
 }
 function resolveSystem(sys, baseDir, visited, files, errors) {
     const newBody = [];
+    const hoisted = [];
     for (const item of sys.body) {
         if (item.type === "IncludeDecl") {
             const included = resolveInclude(item, baseDir, visited, files, errors);
@@ -60,15 +63,18 @@ function resolveSystem(sys, baseDir, visited, files, errors) {
                 if (inc.type === "ComponentDecl" || inc.type === "SemanticComment") {
                     newBody.push(inc);
                 }
-                // Other top-level items from included files are silently kept
-                // (they'll be in the unified model at document level)
+                else {
+                    // Non-component items (shared enums, entities, etc.) are hoisted
+                    // to MfdDocument.body since SystemDecl.body only accepts components
+                    hoisted.push(inc);
+                }
             }
         }
         else {
             newBody.push(item);
         }
     }
-    return { ...sys, body: newBody };
+    return { system: { ...sys, body: newBody }, hoisted };
 }
 function resolveInclude(incl, baseDir, visited, files, errors) {
     let filePath = incl.path;

@@ -483,14 +483,55 @@ Both?
 
 ### Where to define in multi-file?
 
+Two sharing mechanisms exist:
+- **shared.mfd** (no `component` block) = Shared Vocabulary: enums, @abstract, @interface
+- **Shared component** (with `component` block, e.g. `protocolo.mfd`) = Protocol: integration events, signals, integration state machines
+
+Decision tree by construct type:
+
 ```
-Used by 2+ components?
-  YES -> shared.mfd
-Used by only 1 component?
-  YES -> <component-name>.mfd
-System declaration + imports?
-  YES -> main.mfd
+enum?
+  Used by 2+ components? -> shared.mfd (Shared Vocabulary)
+  Used by 1 component?   -> <component>.mfd
+
+entity @abstract or @interface?
+  -> shared.mfd (Shared Vocabulary)
+
+entity (concrete, managed)?
+  -> <managing-component>.mfd (Ownership Principle)
+  NEVER in shared.mfd — managed entities have an owner
+
+event or signal (integration)?
+  Emitted by one component, consumed by others?
+  -> protocolo.mfd (component Protocol)
+  Used internally by 1 component?
+  -> <component>.mfd
+
+state machine?
+  Transitions triggered by integration events?
+  -> protocolo.mfd (component Protocol)
+  Local to one component?
+  -> <component>.mfd
+
+flow, operation, rule, api?
+  -> ALWAYS in <component>.mfd (never shared)
+
+screen, action, journey, element?
+  -> ALWAYS in <component>.mfd (never shared)
+
+system + imports?
+  -> main.mfd
 ```
+
+**Three named patterns:**
+
+| Pattern | File | Contains |
+|---------|------|----------|
+| Shared Vocabulary | `shared.mfd` (no component) | enums, @abstract, @interface |
+| Shared Domain | `<name>.mfd` (with component) | managed entities + enums + state machines |
+| Protocol | `protocolo.mfd` (with component) | integration events, signals, protocol enums |
+
+**Anti-pattern: God Core** — If 60%+ of constructs are centralized in a single component, redistribute: managed entities to their owning component, integration events to a Protocol component, base types to shared.mfd.
 
 ---
 
