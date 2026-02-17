@@ -72,6 +72,10 @@ export interface FlowContract {
     returnType: string | null;
     trigger: string | null;
     emits: string[];
+    handles: Array<{
+        method: string;
+        path: string;
+    }>;
     decorators: string[];
     steps: FlowStepContract[];
     resolvedSteps: FlowStepContract[];

@@ -15,6 +15,10 @@ function normalizePath(p) {
  * OPERATION_HANDLES_UNRESOLVED: handles endpoint not found in any API.
  * OPERATION_CALLS_UNRESOLVED: calls endpoint not found in any API (including @external).
  *
+ * FLOW_HANDLES_UNRESOLVED: flow handles endpoint not found in any API.
+ * FLOW_CALLS_FORBIDDEN: flows cannot use 'calls' — only operations can consume endpoints.
+ *   Flows can receive endpoints with 'handles', but cannot consume them with 'calls'.
+ *
  * RULE_ORPHAN: Warning when a rule has no operation enforcing it
  * (only when model has >= 1 operation — opt-in).
  */
@@ -97,6 +101,34 @@ export function operationCompleteness(doc) {
                 else {
                     enforcedRules.add(item.rule);
                 }
+            }
+        }
+    }
+    // FLOW_HANDLES_UNRESOLVED: flow handles endpoint not found in any API
+    // FLOW_CALLS_FORBIDDEN: flows cannot use 'calls' — only operations can consume endpoints
+    for (const flow of model.flows) {
+        for (const item of flow.body) {
+            if (item.type === "OperationHandlesClause") {
+                const key = `${item.method} ${normalizePath(item.path)}`;
+                if (!apiEndpoints.has(key)) {
+                    diagnostics.push({
+                        code: "FLOW_HANDLES_UNRESOLVED",
+                        severity: "warning",
+                        message: `Flow '${flow.name}' handles '${item.method} ${item.path}' which is not declared in any API`,
+                        location: item.loc,
+                        help: "Declare the endpoint in an 'api' block or check the method/path",
+                    });
+                }
+            }
+            // Detect 'calls' misused in flow (parsed as FlowStep since grammar doesn't allow it)
+            if (item.type === "FlowStep" && /^calls\s/i.test(item.action)) {
+                diagnostics.push({
+                    code: "FLOW_CALLS_FORBIDDEN",
+                    severity: "error",
+                    message: `Flow '${flow.name}' uses 'calls' which is not allowed in flows. Only operations can consume API endpoints with 'calls'. Flows can receive endpoints with 'handles'`,
+                    location: item.loc,
+                    help: "Move 'calls' to an operation, or use 'handles' if this flow serves the endpoint",
+                });
             }
         }
     }

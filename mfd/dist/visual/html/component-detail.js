@@ -311,7 +311,8 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
             }
         }
     }
-    // 3. API → Entity/Event (endpoint input/output types)
+    // 3. API → Event (endpoint return types referencing events, e.g. STREAM)
+    // Note: API → Entity edges removed — entities connect via flows (API → Flow → Entity)
     for (const api of apis) {
         const apiName = api.name ?? "api";
         for (const ep of api.endpoints) {
@@ -320,8 +321,6 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
                 ...extractTypeRefs(ep.returnType),
             ];
             for (const ref of new Set(allRefs)) {
-                if (nodeIds.has(`entity:${ref}`))
-                    addEdge("api", apiName, "entity", ref, "api-entity");
                 if (nodeIds.has(`event:${ref}`))
                     addEdge("api", apiName, "event", ref, "api-event");
             }
@@ -424,6 +423,37 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
             // Signal → Screen (action on signal)
             if (onSignal && nodeIds.has(`signal:${onSignal}`)) {
                 addEdge("signal", onSignal, "screen", fromScreen, "signal-screen");
+            }
+        }
+    }
+    // 6a. Flow → API (flow directly handles endpoint)
+    for (const flow of flows) {
+        for (const item of flow.body) {
+            if (item.type === "OperationHandlesClause") {
+                const apiName = findApiForPath(item.method, item.path);
+                if (apiName && nodeIds.has(`api:${apiName}`)) {
+                    addEdge("api", apiName, "flow", flow.name, "api-flow");
+                }
+            }
+        }
+    }
+    // 6b. Operation handles → trace to calling flows
+    for (const op of operations) {
+        if (!op.body)
+            continue;
+        for (const item of op.body) {
+            if (item.type === "OperationHandlesClause") {
+                const apiName = findApiForPath(item.method, item.path);
+                if (apiName && nodeIds.has(`api:${apiName}`)) {
+                    const opRel = rels.get(makeKey(componentName, "operation", op.name));
+                    if (opRel) {
+                        for (const flowRef of opRel.usedByFlows) {
+                            if (flowRef.component === componentName && nodeIds.has(`flow:${flowRef.name}`)) {
+                                addEdge("api", apiName, "flow", flowRef.name, "api-flow");
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1090,6 +1120,20 @@ function buildFlowGraphData(flows, componentName, entityComponentMap, enumNames,
         }
         if (flow.extends && flowByName.has(flow.extends)) {
             edges.push({ from: flow.extends, to: flow.name, label: "extends", edgeType: "extends" });
+        }
+        // Endpoint nodes from flow handles
+        for (const item of flow.body) {
+            if (item.type === "OperationHandlesClause") {
+                const ep = `${item.method} ${item.path}`;
+                const epId = `ep:${ep}`;
+                if (!endpointNodeMap.has(epId)) {
+                    endpointNodeMap.set(epId, {
+                        id: epId, name: ep, href: constructLink(componentName, "flow", flow.name),
+                        constructType: "endpoint", method: item.method, path: item.path, direction: "handles",
+                    });
+                }
+                edges.push({ from: epId, to: flow.name, label: "handles", edgeType: "handles" });
+            }
         }
     }
     // --- Phase 3: IO nodes from flow's declared signature ---

@@ -208,12 +208,15 @@ function contractEnum(e) {
 function contractFlow(f, flowMap) {
     let trigger = null;
     const emits = [];
+    const handles = [];
     const overrides = [];
     for (const item of f.body) {
         if (item.type === "OnClause")
             trigger = item.event;
         if (item.type === "EmitsClause")
             emits.push(item.event);
+        if (item.type === "OperationHandlesClause")
+            handles.push({ method: item.method, path: item.path });
         if (item.type === "FlowOverrideStep")
             overrides.push(item.target);
     }
@@ -227,6 +230,7 @@ function contractFlow(f, flowMap) {
         returnType: f.returnType ? serializeType(f.returnType) : null,
         trigger,
         emits,
+        handles,
         decorators: serializeDecorators(f.decorators),
         steps: f.body
             .filter((item) => item.type === "FlowStep")

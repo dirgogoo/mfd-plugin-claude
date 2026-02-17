@@ -10,6 +10,10 @@ import type { ValidationDiagnostic } from "../index.js";
  * OPERATION_HANDLES_UNRESOLVED: handles endpoint not found in any API.
  * OPERATION_CALLS_UNRESOLVED: calls endpoint not found in any API (including @external).
  *
+ * FLOW_HANDLES_UNRESOLVED: flow handles endpoint not found in any API.
+ * FLOW_CALLS_FORBIDDEN: flows cannot use 'calls' — only operations can consume endpoints.
+ *   Flows can receive endpoints with 'handles', but cannot consume them with 'calls'.
+ *
  * RULE_ORPHAN: Warning when a rule has no operation enforcing it
  * (only when model has >= 1 operation — opt-in).
  */

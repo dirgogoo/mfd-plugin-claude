@@ -149,7 +149,7 @@ export interface FlowDecl extends BaseNode {
     decorators: Decorator[];
     body: FlowBodyItem[];
 }
-export type FlowBodyItem = FlowStep | FlowOverrideStep | OnClause | EmitsClause | SemanticComment;
+export type FlowBodyItem = FlowStep | FlowOverrideStep | OnClause | EmitsClause | OperationHandlesClause | SemanticComment;
 export interface FlowStep extends BaseNode {
     type: "FlowStep";
     hasArrow: boolean;
