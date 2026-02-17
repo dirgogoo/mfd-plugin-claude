@@ -328,6 +328,8 @@ export function computeRelationships(model, constructComponentMap) {
                 const eventComp = getComp("event", item.event);
                 if (eventComp) {
                     addUnique(opRel.emitsEvents, { component: eventComp, type: "event", name: item.event });
+                    const eventRel = getOrCreate(eventComp, "event", item.event);
+                    addUnique(eventRel.usedByFlows, { component: opComp, type: "operation", name: op.name });
                 }
             }
             if (item.type === "OnClause") {

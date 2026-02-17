@@ -528,10 +528,17 @@ a:hover, .scope-construct-link:hover {
 
 /* ===== MAIN CANVAS ===== */
 .scope-canvas {
-  margin: 0;
-  min-height: 100vh;
-  padding: 40px 40px 60px 40px;
+  position: fixed;
+  top: 25px;
+  left: 25px;
+  right: 25px;
+  bottom: 25px;
+  padding: 20px 20px 40px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
   animation: bootUp 0.4s ease-out;
+  background: var(--scope-void);
+  border-radius: 16px 16px 0 0;
 }
 
 /* ===== OVERVIEW PAGE ===== */
@@ -1143,11 +1150,12 @@ a:hover, .scope-construct-link:hover {
 /* ===== FULL-PAGE DIAGRAM ===== */
 .scope-fullpage-diagram {
   position: relative;
-  min-height: calc(100vh - var(--scope-space-12));
+  height: calc(100vh - 130px);
+  overflow: hidden;
 }
 
 .scope-fullpage-diagram .scope-diagram-container {
-  height: calc(100vh - var(--scope-space-12));
+  height: 100%;
 }
 
 .scope-diagram-controls {
@@ -1185,7 +1193,8 @@ a:hover, .scope-construct-link:hover {
   display: flex;
   flex-direction: column;
   gap: var(--scope-space-3);
-  min-height: calc(100vh - 140px);
+  height: calc(100vh - 130px);
+  overflow: hidden;
 }
 
 .scope-component-header {
@@ -1260,6 +1269,7 @@ a:hover, .scope-construct-link:hover {
 .scope-entity-card:hover {
   background: #FFFFFF;
   color: #000000;
+  cursor: pointer;
 }
 
 .scope-entity-card-name {
@@ -1526,21 +1536,31 @@ a:hover, .scope-construct-link:hover {
 }
 
 /* ===== SCROLLBAR ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scope-border) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--scope-void);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--scope-border);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scope-border-bold);
+  background: var(--scope-text-tertiary);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ===== FILTER BAR (above table) ===== */
@@ -2142,14 +2162,19 @@ a:hover, .scope-construct-link:hover {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .scope-tab-panel-content {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
   gap: var(--scope-space-3);
   padding-top: var(--scope-space-2);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .scope-mini-diagram {
@@ -2213,7 +2238,7 @@ a:hover, .scope-construct-link:hover {
 
 .scope-diagram-primary .scope-diagram-container {
   flex: 1;
-  min-height: calc(100vh - 120px);
+  height: calc(100vh - 130px);
 }
 
 .scope-components-toggle {
@@ -2472,7 +2497,6 @@ button:focus-visible,
 
 .scope-graph-node.ghost {
   opacity: 0.6;
-  border-style: dashed;
 }
 
 /* ===== NODE BUILDING BLOCKS (composable) ===== */
@@ -3193,17 +3217,14 @@ path.scope-graph-edge-override {
 
 .scope-event-operation-node { border-color: var(--scope-type-operation); }
 .scope-event-operation-node .scope-node-type { color: var(--scope-type-operation); }
-.scope-event-flow-node { border-style: dashed; border-color: var(--scope-type-flow); }
+.scope-event-flow-node { border-color: var(--scope-type-flow); }
 .scope-event-flow-node .scope-node-type { color: var(--scope-type-flow); }
-.scope-event-rule-node { border-style: dotted; border-color: var(--scope-type-rule); }
+.scope-event-rule-node { border-color: var(--scope-type-rule); }
 .scope-event-rule-node .scope-node-type { color: var(--scope-type-rule); }
 .scope-event-state-node { border-color: var(--scope-type-state); }
 .scope-event-state-node .scope-node-type { color: var(--scope-type-state); }
-.scope-event-state-transition-node {
-  border-style: dashed;
-  border-color: var(--scope-type-state);
-}
-.scope-event-api-stream-node { border-style: dashed; border-color: var(--scope-type-api); }
+.scope-event-state-transition-node { border-color: var(--scope-type-state); }
+.scope-event-api-stream-node { border-color: var(--scope-type-api); }
 .scope-event-api-stream-node .scope-node-type { color: var(--scope-type-api); }
 
 .scope-event-stream-label {
@@ -3356,16 +3377,23 @@ path.scope-graph-edge-override {
 .scope-graph-node.dragging:hover .scope-state-node-meta { color: var(--scope-text-tertiary); }
 .scope-graph-node.dragging:hover .scope-state-event-node-name a { color: var(--scope-text-primary); }
 
-/* State graph title */
+/* State graph title — positioned by JS per machine group */
 .scope-state-graph-title {
   font-size: var(--scope-text-xs);
   color: var(--scope-text-tertiary);
-  padding: var(--scope-space-2) var(--scope-space-3);
+  padding: var(--scope-space-1) var(--scope-space-2);
   position: absolute;
-  top: 0;
-  left: 0;
   z-index: 5;
   pointer-events: auto;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+
+/* Shared event node highlight */
+.scope-state-event-node.shared {
+  border-width: 2px;
+  border-color: var(--scope-type-event);
+  box-shadow: 0 0 8px rgba(167, 139, 250, 0.3);
 }
 
 .scope-state-graph-title a {
@@ -3817,7 +3845,6 @@ path.scope-graph-edge-override {
 .scope-screen-entity-node .scope-node-type { color: var(--scope-type-entity); }
 
 .scope-screen-entity-node.ghost {
-  border-style: dashed;
   opacity: 0.7;
 }
 

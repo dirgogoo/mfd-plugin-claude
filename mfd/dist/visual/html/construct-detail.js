@@ -68,12 +68,18 @@ function renderRelationshipDiagram(type, name, rels, snapshot) {
     // Flows that use this operation
     for (const ref of rels.usedByOperations)
         addNeighbor(ref, "#00FF41", "solid", "in");
+    // Events that trigger this construct
+    for (const ref of rels.triggeredByEvents)
+        addNeighbor(ref, "#FFD700", "solid", "in");
     // Rules that trigger this operation
     for (const ref of rels.triggeredByRules)
         addNeighbor(ref, "#FF6347", "dashed", "in");
     // Operations triggered by this event
     for (const ref of rels.triggersOperations)
         addNeighbor(ref, "#FF6347", "solid", "out");
+    // States triggered by this event
+    for (const ref of rels.triggersStates)
+        addNeighbor(ref, "#FF8C00", "solid", "out");
     // Enforces rules
     for (const ref of rels.enforcesRules)
         addNeighbor(ref, "#FF6347", "solid", "out");
@@ -147,6 +153,8 @@ export function renderConstructDetail(snapshot, componentName, type, itemName) {
             return renderOperationDetail(snapshot, componentName, itemName, entityComponentMap, rels);
         case "action":
             return renderActionDetail(snapshot, componentName, itemName, rels);
+        case "api":
+            return renderApiDetail(snapshot, componentName, itemName, entityComponentMap, rels);
         default:
             return `<div class="scope-empty-state"><p>Unknown construct type: ${escapeHtml(type)}</p></div>`;
     }
@@ -236,11 +244,17 @@ function relationshipPanel(rels, entityComponentMap) {
     if (rels.usedByOperations.length > 0) {
         sections.push(relSection("Used by (operations)", rels.usedByOperations));
     }
+    if (rels.triggeredByEvents.length > 0) {
+        sections.push(relSection("Triggered by (events)", rels.triggeredByEvents));
+    }
     if (rels.triggeredByRules.length > 0) {
         sections.push(relSection("Triggered by (rules)", rels.triggeredByRules));
     }
     if (rels.triggersOperations.length > 0) {
         sections.push(relSection("Triggers (operations)", rels.triggersOperations));
+    }
+    if (rels.triggersStates.length > 0) {
+        sections.push(relSection("Triggers (states)", rels.triggersStates));
     }
     if (rels.enforcesRules.length > 0) {
         sections.push(relSection("Enforces (rules)", rels.enforcesRules));
@@ -906,6 +920,196 @@ function renderActionDetail(snapshot, componentName, actionName, rels) {
 
   ${renderRelationshipDiagram("action", actionName, rels, snapshot)}
   ${relationshipPanel(rels, new Map())}
+</div>`;
+}
+// ===== API Detail =====
+const METHOD_COLORS = {
+    GET: { bg: "#dcfce7", fg: "#166534" },
+    POST: { bg: "#dbeafe", fg: "#1e40af" },
+    PUT: { bg: "#fef9c3", fg: "#854d0e" },
+    DELETE: { bg: "#fee2e2", fg: "#991b1b" },
+    PATCH: { bg: "#ffedd5", fg: "#9a3412" },
+    STREAM: { bg: "#f3e8ff", fg: "#6b21a8" },
+};
+function methodChip(method) {
+    const colors = METHOD_COLORS[method] || { bg: "var(--scope-accent-muted)", fg: "var(--scope-accent)" };
+    return `<span class="scope-chip" style="background: ${colors.bg}; color: ${colors.fg}; border: 1px solid ${colors.bg}; font-weight: 600; font-size: 11px; letter-spacing: 0.5px">${escapeHtml(method)}</span>`;
+}
+function renderApiDetail(snapshot, componentName, apiName, entityComponentMap, rels) {
+    const enumNames = new Set(snapshot.model.enums.map((e) => e.name));
+    const api = snapshot.model.apis.find((a) => (a.name || "api") === apiName);
+    if (!api) {
+        return `<div class="scope-empty-state"><p>API not found: ${escapeHtml(apiName)}</p></div>`;
+    }
+    const ccMap = snapshot.constructComponentMap;
+    const isExternal = api.decorators?.some((d) => d.name === "external") ?? false;
+    const prefixDec = api.decorators?.find((d) => d.name === "prefix");
+    const prefix = prefixDec ? String(prefixDec.params[0]?.value ?? "") : "";
+    // === Info section ===
+    const infoParts = [];
+    infoParts.push(`<div><strong>Style:</strong> ${escapeHtml(api.style)}</div>`);
+    if (prefix) {
+        infoParts.push(`<div><strong>Prefix:</strong> <span class="scope-mono">${escapeHtml(prefix)}</span></div>`);
+    }
+    if (isExternal) {
+        infoParts.push(`<div><span class="scope-chip" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a">@external</span></div>`);
+    }
+    const infoHtml = `<div class="scope-construct-section">
+    <div class="scope-construct-section-title">Info</div>
+    <div style="display: flex; flex-direction: column; gap: 4px">${infoParts.join("")}</div>
+  </div>`;
+    // === Endpoints table ===
+    const endpointRows = api.endpoints.map((ep) => {
+        const fullPath = prefix + ep.path;
+        const inputTypeAst = ep.type === "ApiEndpointSimple" ? ep.inputType : ep.body;
+        const outputTypeAst = ep.type === "ApiEndpointSimple" ? ep.returnType : ep.response;
+        const inputHtml = inputTypeAst ? formatTypeLinked(inputTypeAst, entityComponentMap, enumNames) : "&mdash;";
+        const outputHtml = outputTypeAst ? formatTypeLinked(outputTypeAst, entityComponentMap, enumNames) : "&mdash;";
+        const decoratorChips = [];
+        for (const d of (ep.decorators || [])) {
+            if (d.name === "auth")
+                decoratorChips.push(`<span class="scope-chip" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a">@auth</span>`);
+            else if (d.name === "rate_limit") {
+                const val = d.params?.[0] ? d.params[0].value : "";
+                decoratorChips.push(`<span class="scope-chip" style="background: var(--scope-accent-muted); color: var(--scope-accent); border: 1px solid var(--scope-border)">@rate_limit(${escapeHtml(String(val))})</span>`);
+            }
+            else if (d.name === "cache") {
+                const val = d.params?.[0] ? d.params[0].value : "";
+                decoratorChips.push(`<span class="scope-chip" style="background: var(--scope-accent-muted); color: var(--scope-accent); border: 1px solid var(--scope-border)">@cache(${escapeHtml(String(val))})</span>`);
+            }
+        }
+        const decoHtml = decoratorChips.length > 0 ? `<div style="margin-top: 2px">${decoratorChips.join(" ")}</div>` : "";
+        return `<tr>
+      <td>${methodChip(ep.method)}</td>
+      <td class="scope-mono" style="font-size: var(--scope-text-xs)">${escapeHtml(fullPath)}</td>
+      <td style="font-size: var(--scope-text-xs)">${inputHtml}</td>
+      <td style="font-size: var(--scope-text-xs)">${outputHtml}</td>
+      <td>${decoHtml}</td>
+    </tr>`;
+    });
+    const endpointsHtml = endpointRows.length > 0
+        ? `<div class="scope-construct-section">
+        <div class="scope-construct-section-title">Endpoints (${endpointRows.length})</div>
+        <table class="scope-construct-table">
+          <thead><tr><th>Method</th><th>Path</th><th>Input</th><th>Output</th><th>Decorators</th></tr></thead>
+          <tbody>${endpointRows.join("")}</tbody>
+        </table>
+      </div>`
+        : "";
+    // === Handlers: operations that handle this API's endpoints ===
+    const resolvedPaths = api.endpoints.map((ep) => ({
+        method: ep.method,
+        fullPath: prefix + ep.path,
+    }));
+    const handlerRows = [];
+    for (const op of snapshot.model.operations) {
+        for (const item of op.body) {
+            if (item.type === "OperationHandlesClause") {
+                const clause = item;
+                const matched = resolvedPaths.find((rp) => rp.method === clause.method && rp.fullPath === clause.path);
+                if (matched) {
+                    const opComp = ccMap.get(`operation:${op.name}`);
+                    const link = opComp
+                        ? `<a href="${constructLink(opComp, 'operation', op.name)}" class="scope-construct-link">${escapeHtml(op.name)}</a>`
+                        : escapeHtml(op.name);
+                    handlerRows.push(`<tr>
+            <td>${link}</td>
+            <td>${methodChip(matched.method)} <span class="scope-mono" style="font-size: var(--scope-text-xs)">${escapeHtml(matched.fullPath)}</span></td>
+          </tr>`);
+                }
+            }
+        }
+    }
+    const handlersHtml = handlerRows.length > 0
+        ? `<div class="scope-construct-section">
+        <div class="scope-construct-section-title">Handlers (operations)</div>
+        <table class="scope-construct-table">
+          <thead><tr><th>Operation</th><th>Endpoint</th></tr></thead>
+          <tbody>${handlerRows.join("")}</tbody>
+        </table>
+      </div>`
+        : "";
+    // === Consumers: actions that call this API's endpoints ===
+    const consumerRows = [];
+    for (const action of snapshot.model.actions) {
+        for (const item of action.body) {
+            if (item.type === "ActionCallsClause") {
+                const clause = item;
+                const matched = resolvedPaths.find((rp) => rp.method === clause.method && rp.fullPath === clause.path);
+                if (matched) {
+                    const actionComp = ccMap.get(`action:${action.name}`);
+                    const link = actionComp
+                        ? `<a href="${constructLink(actionComp, 'action', action.name)}" class="scope-construct-link">${escapeHtml(action.name)}</a>`
+                        : escapeHtml(action.name);
+                    // Find from screen
+                    const fromClause = action.body.find((b) => b.type === "ActionFromClause");
+                    const fromScreen = fromClause?.screen ?? "";
+                    const screenComp = fromScreen ? ccMap.get(`screen:${fromScreen}`) : null;
+                    const screenLink = screenComp
+                        ? `<a href="${constructLink(screenComp, 'screen', fromScreen)}" class="scope-construct-link">${escapeHtml(fromScreen)}</a>`
+                        : escapeHtml(fromScreen);
+                    consumerRows.push(`<tr>
+            <td>${link}</td>
+            <td>${screenLink ? `from ${screenLink}` : ""}</td>
+            <td>${methodChip(matched.method)} <span class="scope-mono" style="font-size: var(--scope-text-xs)">${escapeHtml(matched.fullPath)}</span></td>
+          </tr>`);
+                }
+            }
+            if (item.type === "ActionOnStreamClause") {
+                const clause = item;
+                const streamPath = clause.path;
+                const matched = resolvedPaths.find((rp) => rp.method === "STREAM" && rp.fullPath === streamPath);
+                if (matched) {
+                    const actionComp = ccMap.get(`action:${action.name}`);
+                    const link = actionComp
+                        ? `<a href="${constructLink(actionComp, 'action', action.name)}" class="scope-construct-link">${escapeHtml(action.name)}</a>`
+                        : escapeHtml(action.name);
+                    const fromClause = action.body.find((b) => b.type === "ActionFromClause");
+                    const fromScreen = fromClause?.screen ?? "";
+                    const screenComp = fromScreen ? ccMap.get(`screen:${fromScreen}`) : null;
+                    const screenLink = screenComp
+                        ? `<a href="${constructLink(screenComp, 'screen', fromScreen)}" class="scope-construct-link">${escapeHtml(fromScreen)}</a>`
+                        : escapeHtml(fromScreen);
+                    consumerRows.push(`<tr>
+            <td>${link}</td>
+            <td>${screenLink ? `from ${screenLink}` : ""}</td>
+            <td>${methodChip("STREAM")} <span class="scope-mono" style="font-size: var(--scope-text-xs)">${escapeHtml(matched.fullPath)}</span></td>
+          </tr>`);
+                }
+            }
+        }
+    }
+    const consumersHtml = consumerRows.length > 0
+        ? `<div class="scope-construct-section">
+        <div class="scope-construct-section-title">Consumers (actions)</div>
+        <table class="scope-construct-table">
+          <thead><tr><th>Action</th><th>Screen</th><th>Endpoint</th></tr></thead>
+          <tbody>${consumerRows.join("")}</tbody>
+        </table>
+      </div>`
+        : "";
+    // === Description (semantic comments) ===
+    const comments = api.comments?.map((c) => c.text || c) || [];
+    const commentHtml = comments.length > 0
+        ? `<div class="scope-construct-section">
+        <div class="scope-construct-section-title">Description</div>
+        <div style="color: var(--scope-text-secondary)">${comments.map((c) => escapeHtml(c)).join("<br>")}</div>
+      </div>`
+        : "";
+    return `
+<div class="scope-construct-detail">
+  ${detailHeader("api", apiName, componentName, api.decorators)}
+
+  <div class="scope-construct-body">
+    ${infoHtml}
+    ${endpointsHtml}
+    ${handlersHtml}
+    ${consumersHtml}
+    ${commentHtml}
+  </div>
+
+  ${renderRelationshipDiagram("api", apiName, rels, snapshot)}
+  ${relationshipPanel(rels, entityComponentMap)}
 </div>`;
 }
 //# sourceMappingURL=construct-detail.js.map

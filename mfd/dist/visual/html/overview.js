@@ -109,12 +109,12 @@ export function renderOverview(snapshot) {
     if (snapshot.model.components.length > 0) {
         const graphData = buildComponentGraphData(snapshot);
         return `
-<div class="scope-diagram-container" id="diagram-container" data-diagram-type="component" style="min-height: calc(100vh - var(--scope-space-12))">
+<div class="scope-diagram-container" id="diagram-container" data-diagram-type="component" style="height: calc(100vh - 130px)">
   ${buildComponentGraphHtml(graphData)}
 </div>`;
     }
     return `
-<div class="scope-diagram-container" id="diagram-container" data-diagram-type="component" style="min-height: calc(100vh - var(--scope-space-12))">
+<div class="scope-diagram-container" id="diagram-container" data-diagram-type="component" style="height: calc(100vh - 130px)">
   <div class="scope-empty-state">
     <div class="scope-empty-state-icon">
       <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="24" cy="24" r="20"/><line x1="16" y1="16" x2="32" y2="32"/></svg>

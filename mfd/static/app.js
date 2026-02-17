@@ -1919,34 +1919,38 @@ class StateGraph extends BaseGraph {
   renderNodes() {
     this.worldEl.innerHTML = '';
 
-    // Title bar
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'scope-state-graph-title';
-    const stateLink = document.createElement('a');
-    stateLink.href = this.data.stateHref;
-    stateLink.className = 'scope-construct-link';
-    stateLink.textContent = this.data.stateMachineName;
-    stateLink.addEventListener('click', (e) => {
-      if (this._wasDragging) { e.preventDefault(); e.stopPropagation(); }
-    });
-    titleDiv.appendChild(stateLink);
-    titleDiv.appendChild(document.createTextNode(' : '));
-    const enumLink = document.createElement('a');
-    enumLink.href = this.data.enumHref;
-    enumLink.className = 'scope-construct-link';
-    enumLink.textContent = this.data.enumRef;
-    enumLink.addEventListener('click', (e) => {
-      if (this._wasDragging) { e.preventDefault(); e.stopPropagation(); }
-    });
-    titleDiv.appendChild(enumLink);
-    this.container.appendChild(titleDiv);
+    // Title bars for each machine (positioned absolutely during layout)
+    for (const machine of this.data.machines) {
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'scope-state-graph-title';
+      titleDiv.dataset.machine = machine.name;
+      const stateLink = document.createElement('a');
+      stateLink.href = machine.stateHref;
+      stateLink.className = 'scope-construct-link';
+      stateLink.textContent = machine.name;
+      stateLink.addEventListener('click', (e) => {
+        if (this._wasDragging) { e.preventDefault(); e.stopPropagation(); }
+      });
+      titleDiv.appendChild(stateLink);
+      titleDiv.appendChild(document.createTextNode(' : '));
+      const enumLink = document.createElement('a');
+      enumLink.href = machine.enumHref;
+      enumLink.className = 'scope-construct-link';
+      enumLink.textContent = machine.enumRef;
+      enumLink.addEventListener('click', (e) => {
+        if (this._wasDragging) { e.preventDefault(); e.stopPropagation(); }
+      });
+      titleDiv.appendChild(enumLink);
+      this.worldEl.appendChild(titleDiv);
+    }
 
     // State nodes — name first, type + cycle below
     for (const state of this.data.stateNodes) {
       const div = this.createNode(state, 'scope-state-node');
       if (state.isInitial) div.classList.add('initial');
       if (state.isTerminal) div.classList.add('terminal');
-      div.dataset.href = this.data.stateHref;
+      const machine = this.data.machines.find(m => m.name === state.machine);
+      if (machine) div.dataset.href = machine.stateHref;
 
       // Name (large, first)
       const nameDiv = document.createElement('div');
@@ -1963,7 +1967,7 @@ class StateGraph extends BaseGraph {
       // Type + cycle (small, below)
       const metaDiv = document.createElement('div');
       metaDiv.className = 'scope-state-node-meta';
-      metaDiv.textContent = 'state \u00B7 ' + this.data.stateMachineName;
+      metaDiv.textContent = 'state \u00B7 ' + state.machine;
       div.appendChild(metaDiv);
 
       this.registerNode(div, state.id);
@@ -1972,6 +1976,9 @@ class StateGraph extends BaseGraph {
     // Event nodes — name first, type below
     for (const ev of this.data.eventNodes) {
       const div = this.createNode(ev, 'scope-state-event-node');
+      if (ev.machines && ev.machines.length > 1) {
+        div.classList.add('shared');
+      }
 
       const nameDiv = document.createElement('div');
       nameDiv.className = 'scope-state-event-node-name';
@@ -1981,15 +1988,16 @@ class StateGraph extends BaseGraph {
 
       const metaDiv = document.createElement('div');
       metaDiv.className = 'scope-state-node-meta';
-      metaDiv.textContent = 'event';
+      metaDiv.textContent = ev.machines && ev.machines.length > 1
+        ? 'event \u00B7 shared'
+        : 'event';
       div.appendChild(metaDiv);
 
       this.registerNode(div, ev.id);
     }
 
-    // Enum node — name, type, values
-    if (this.data.enumNode) {
-      const en = this.data.enumNode;
+    // Enum nodes — one per machine
+    for (const en of (this.data.enumNodes || [])) {
       const div = this.createNode(en, 'scope-state-enum-node');
       div.dataset.href = en.href;
 
@@ -2020,76 +2028,126 @@ class StateGraph extends BaseGraph {
     const stateNodes = this.data.stateNodes;
     if (stateNodes.length === 0) return;
 
-    // Build state→state adjacency from transition edges
-    const stateAdj = new Map();
-    for (const edge of this.data.edges) {
-      if (edge.edgeType === 'transition') {
-        if (!stateAdj.has(edge.from)) stateAdj.set(edge.from, []);
-        stateAdj.get(edge.from).push(edge.to);
-      }
+    const machines = this.data.machines || [];
+    const machineNames = machines.map(m => m.name);
+
+    // Group state nodes by machine
+    const machineGroups = new Map();
+    for (const mn of machineNames) {
+      machineGroups.set(mn, stateNodes.filter(n => n.machine === mn));
     }
 
-    // BFS from initial states
-    const initialIds = stateNodes.filter(n => n.isInitial).map(n => n.id);
-    if (initialIds.length === 0 && stateNodes.length > 0) {
-      initialIds.push(stateNodes[0].id);
-    }
-
-    const depth = new Map();
-    const queue = [];
-    for (const id of initialIds) {
-      depth.set(id, 0);
-      queue.push(id);
-    }
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      const currentDepth = depth.get(current);
-      const neighbors = stateAdj.get(current) || [];
-      for (const next of neighbors) {
-        if (!depth.has(next)) {
-          depth.set(next, currentDepth + 1);
-          queue.push(next);
-        }
-      }
-    }
-
-    for (const node of stateNodes) {
-      if (!depth.has(node.id)) depth.set(node.id, 0);
-    }
-
-    // Group by depth
-    const columns = new Map();
-    for (const [id, d] of depth) {
-      if (!columns.has(d)) columns.set(d, []);
-      columns.get(d).push(id);
-    }
-
+    // Layout each machine group
     const colGap = 260;
     const rowGap = 100;
+    const machineGap = 120; // vertical gap between machine groups
     const startX = 200;
-    const startY = 60;
+    let groupStartY = 60;
 
-    // Position state nodes in columns
-    const sortedDepths = [...columns.keys()].sort((a, b) => a - b);
-    for (const d of sortedDepths) {
-      const col = columns.get(d);
-      const x = startX + d * colGap;
-      const totalHeight = col.length * rowGap;
-      let y = startY + Math.max(0, (300 - totalHeight) / 2);
-      for (const id of col) {
-        this.nodePositions.set(id, { x, y });
-        const el = this.nodeElements.get(id);
-        if (el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
-        y += rowGap;
+    // Track bounding box per machine for title positioning
+    const machineBounds = new Map(); // name -> { minX, minY, maxX, maxY }
+
+    for (const machineName of machineNames) {
+      const group = machineGroups.get(machineName) || [];
+      if (group.length === 0) continue;
+
+      // Build adjacency for BFS within this machine
+      const stateAdj = new Map();
+      for (const edge of this.data.edges) {
+        if (edge.edgeType === 'transition') {
+          // Only edges within this machine
+          const fromMachine = edge.from.split(':')[1];
+          if (fromMachine === machineName) {
+            if (!stateAdj.has(edge.from)) stateAdj.set(edge.from, []);
+            stateAdj.get(edge.from).push(edge.to);
+          }
+        }
+      }
+
+      // BFS from initial states
+      const initialIds = group.filter(n => n.isInitial).map(n => n.id);
+      if (initialIds.length === 0 && group.length > 0) {
+        initialIds.push(group[0].id);
+      }
+
+      const depth = new Map();
+      const queue = [];
+      for (const id of initialIds) {
+        depth.set(id, 0);
+        queue.push(id);
+      }
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+        const currentDepth = depth.get(current);
+        const neighbors = stateAdj.get(current) || [];
+        for (const next of neighbors) {
+          if (!depth.has(next)) {
+            depth.set(next, currentDepth + 1);
+            queue.push(next);
+          }
+        }
+      }
+
+      for (const node of group) {
+        if (!depth.has(node.id)) depth.set(node.id, 0);
+      }
+
+      // Group by depth
+      const columns = new Map();
+      for (const [id, d] of depth) {
+        if (!columns.has(d)) columns.set(d, []);
+        columns.get(d).push(id);
+      }
+
+      // Position state nodes
+      const sortedDepths = [...columns.keys()].sort((a, b) => a - b);
+      let maxY = groupStartY;
+      for (const d of sortedDepths) {
+        const col = columns.get(d);
+        const x = startX + d * colGap;
+        let y = groupStartY;
+        for (const id of col) {
+          this.nodePositions.set(id, { x, y });
+          const el = this.nodeElements.get(id);
+          if (el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
+          y += rowGap;
+        }
+        maxY = Math.max(maxY, y);
+      }
+
+      // Compute bounding box
+      let minX = Infinity, minY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+      for (const node of group) {
+        const pos = this.nodePositions.get(node.id);
+        if (pos) {
+          minX = Math.min(minX, pos.x);
+          minY = Math.min(minY, pos.y);
+          bMaxX = Math.max(bMaxX, pos.x + 160);
+          bMaxY = Math.max(bMaxY, pos.y + 60);
+        }
+      }
+      machineBounds.set(machineName, { minX, minY, maxX: bMaxX, maxY: bMaxY });
+
+      // Next machine group starts below
+      groupStartY = maxY + machineGap;
+    }
+
+    // Position title labels at top-left of each machine group
+    const titleEls = this.worldEl.querySelectorAll('.scope-state-graph-title[data-machine]');
+    for (const titleEl of titleEls) {
+      const mn = titleEl.dataset.machine;
+      const bounds = machineBounds.get(mn);
+      if (bounds) {
+        titleEl.style.position = 'absolute';
+        titleEl.style.left = (bounds.minX - 10) + 'px';
+        titleEl.style.top = (bounds.minY - 30) + 'px';
       }
     }
 
-    // Position event nodes near the states they trigger
-    // Each event has trigger edges: event → state(s)
+    // Position event nodes — shared events between machine groups, others near their group
     let eventIdx = 0;
     for (const ev of this.data.eventNodes) {
-      // Find target states this event triggers
       const targetStates = this.data.edges
         .filter(e => e.edgeType === 'trigger' && e.from === ev.id)
         .map(e => e.to);
@@ -2102,10 +2160,26 @@ class StateGraph extends BaseGraph {
 
       if (count > 0) {
         const avgX = sumX / count;
-        const avgY = sumY / count - 80 - (eventIdx % 2) * 30;
-        this.nodePositions.set(ev.id, { x: avgX, y: avgY });
+        let avgY;
+        if (ev.machines && ev.machines.length > 1) {
+          // Shared event: position between the machine groups
+          const groupYs = ev.machines.map(mn => {
+            const bounds = machineBounds.get(mn);
+            return bounds ? (bounds.minY + bounds.maxY) / 2 : 0;
+          });
+          avgY = groupYs.reduce((a, b) => a + b, 0) / groupYs.length;
+          // Position to the right of all groups
+          const maxBoundsX = Math.max(...ev.machines.map(mn => {
+            const bounds = machineBounds.get(mn);
+            return bounds ? bounds.maxX : 0;
+          }));
+          this.nodePositions.set(ev.id, { x: maxBoundsX + 80 + (eventIdx % 2) * 40, y: avgY });
+        } else {
+          avgY = sumY / count - 80 - (eventIdx % 2) * 30;
+          this.nodePositions.set(ev.id, { x: avgX, y: avgY });
+        }
       } else {
-        this.nodePositions.set(ev.id, { x: startX + eventIdx * 180, y: startY - 80 });
+        this.nodePositions.set(ev.id, { x: startX + eventIdx * 180, y: 0 });
       }
 
       const el = this.nodeElements.get(ev.id);
@@ -2114,13 +2188,13 @@ class StateGraph extends BaseGraph {
       eventIdx++;
     }
 
-    // Position enum node to the left of everything
-    if (this.data.enumNode) {
-      const enumId = this.data.enumNode.id;
+    // Position enum nodes to the left of their machine group
+    for (const en of (this.data.enumNodes || [])) {
+      const bounds = machineBounds.get(en.machine);
       const x = 30;
-      const y = startY + 20;
-      this.nodePositions.set(enumId, { x, y });
-      const el = this.nodeElements.get(enumId);
+      const y = bounds ? bounds.minY + 20 : 80;
+      this.nodePositions.set(en.id, { x, y });
+      const el = this.nodeElements.get(en.id);
       if (el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
     }
   }
@@ -3692,6 +3766,8 @@ class OverviewGraph extends BaseGraph {
       const inh = this.createInheritanceLine(node);
       if (inh) div.appendChild(inh);
 
+      if (node.ghost) div.appendChild(this.createGhostOrigin(node));
+
       this.registerNode(div, node.id);
     }
   }
@@ -4557,6 +4633,18 @@ document.addEventListener('click', (e) => {
   if (card && card.href) {
     e.preventDefault();
     navigateWithTransition(card.href, e);
+  }
+});
+
+// Intercept entity/construct card clicks for SPA navigation
+document.addEventListener('click', (e) => {
+  const card = e.target.closest('.scope-entity-card');
+  if (card) {
+    const link = card.querySelector('a.scope-construct-link');
+    if (link && link.href) {
+      e.preventDefault();
+      navigateWithTransition(link.href, e);
+    }
   }
 });
 

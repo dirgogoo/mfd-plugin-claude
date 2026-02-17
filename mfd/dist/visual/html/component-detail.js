@@ -68,12 +68,10 @@ export function renderComponentDetail(snapshot, componentName) {
         const flowGraphHtml = buildFlowGraphHtml(flowGraphData);
         tabs.push({ id: "flows", label: "Flows", count: flows.length, color: "var(--scope-diagram-flow)", diagram: null, cards: flowGraphHtml });
     }
-    // States tab — interactive graph
+    // States tab — combined interactive graph
     if (states.length > 0) {
-        const stateGraphHtml = states.map(state => {
-            const graphData = buildStateGraphData(state, componentName, ccMap, snapshot.model.events, snapshot.model.enums);
-            return buildStateGraphHtml(graphData);
-        }).join("");
+        const graphData = buildCombinedStateGraphData(states, componentName, ccMap, snapshot.model.events, snapshot.model.enums);
+        const stateGraphHtml = buildStateGraphHtml(graphData);
         tabs.push({ id: "states", label: "States", count: states.length, color: "var(--scope-diagram-state)", diagram: null, cards: stateGraphHtml });
     }
     // Hoist actions before API tab (needed for both API and screens)
@@ -418,6 +416,165 @@ function buildOverviewGraphData(entities, flows, apis, states, events, signals, 
             }
         }
     }
+    // --- Cross-component ghost nodes ---
+    function addGhostNode(type, name, comp) {
+        const id = `${type}:${name}`;
+        if (nodeIds.has(id))
+            return;
+        const category = DATA_TYPES.has(type) ? "data" : "behavior";
+        nodes.push({
+            id, name,
+            href: constructLink(comp, type, name),
+            implChip: "",
+            constructType: type,
+            category,
+            ghost: true,
+            component: comp,
+        });
+        nodeIds.add(id);
+    }
+    // Operations emitting cross-component events
+    const opsLocal = snapshot.model.operations.filter((o) => ccMap.get(`operation:${o.name}`) === componentName);
+    for (const op of opsLocal) {
+        for (const item of op.body) {
+            if (item.type === "EmitsClause") {
+                const evName = item.event;
+                const evComp = ccMap.get(`event:${evName}`);
+                if (evComp && evComp !== componentName) {
+                    addGhostNode("event", evName, evComp);
+                    const opRel = rels.get(makeKey(componentName, "operation", op.name));
+                    if (opRel) {
+                        for (const flowRef of opRel.usedByFlows) {
+                            if (flowRef.component === componentName && nodeIds.has(`flow:${flowRef.name}`)) {
+                                addEdge("flow", flowRef.name, "event", evName, "flow-event");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Flows triggered by cross-component events (on EventName)
+    for (const flow of flows) {
+        for (const item of flow.body) {
+            if (item.type === "OnClause") {
+                const evName = item.event;
+                const evComp = ccMap.get(`event:${evName}`);
+                if (evComp && evComp !== componentName) {
+                    addGhostNode("event", evName, evComp);
+                    addEdge("event", evName, "flow", flow.name, "event-flow");
+                }
+            }
+        }
+    }
+    // State transitions triggered by cross-component events
+    for (const state of states) {
+        for (const transition of state.transitions) {
+            const evName = transition.event;
+            if (!evName)
+                continue;
+            const evComp = ccMap.get(`event:${evName}`);
+            if (evComp && evComp !== componentName) {
+                addGhostNode("event", evName, evComp);
+                addEdge("event", evName, "state", state.name, "event-state");
+            }
+        }
+    }
+    // Entity fields referencing cross-component entities
+    for (const entity of entities) {
+        for (const field of entity.fields) {
+            const refs = extractTypeRefs(field.fieldType);
+            for (const ref of refs) {
+                const refComp = ccMap.get(`entity:${ref}`) || ccMap.get(`enum:${ref}`);
+                if (refComp && refComp !== componentName) {
+                    addGhostNode("entity", ref, refComp);
+                    addEdge("entity", entity.name, "entity", ref, "entity-ref");
+                }
+            }
+        }
+    }
+    // Reverse: external entities whose fields reference local entities
+    for (const extEntity of snapshot.model.entities) {
+        const extComp = ccMap.get(`entity:${extEntity.name}`);
+        if (!extComp || extComp === componentName)
+            continue; // skip local
+        for (const field of extEntity.fields) {
+            const refs = extractTypeRefs(field.fieldType);
+            for (const ref of refs) {
+                if (entityNames.has(ref)) {
+                    addGhostNode("entity", extEntity.name, extComp);
+                    addEdge("entity", extEntity.name, "entity", ref, "entity-ref");
+                }
+            }
+        }
+    }
+    // Reverse: external flows that emit or consume local events
+    const localEventNames = new Set(events.map((e) => e.name));
+    for (const extFlow of snapshot.model.flows) {
+        const extComp = ccMap.get(`flow:${extFlow.name}`);
+        if (!extComp || extComp === componentName)
+            continue;
+        for (const item of extFlow.body) {
+            if (item.type === "EmitsClause" && localEventNames.has(item.event)) {
+                addGhostNode("flow", extFlow.name, extComp);
+                addEdge("flow", extFlow.name, "event", item.event, "flow-event");
+            }
+            if (item.type === "OnClause" && localEventNames.has(item.event)) {
+                addGhostNode("flow", extFlow.name, extComp);
+                addEdge("event", item.event, "flow", extFlow.name, "event-flow");
+            }
+        }
+    }
+    // Reverse: external operations that emit or consume local events
+    for (const extOp of snapshot.model.operations) {
+        const extComp = ccMap.get(`operation:${extOp.name}`);
+        if (!extComp || extComp === componentName)
+            continue;
+        for (const item of extOp.body) {
+            if (item.type === "EmitsClause" && localEventNames.has(item.event)) {
+                addGhostNode("operation", extOp.name, extComp);
+                addEdge("operation", extOp.name, "event", item.event, "flow-event");
+            }
+            if (item.type === "OnClause" && localEventNames.has(item.event)) {
+                addGhostNode("operation", extOp.name, extComp);
+                addEdge("event", item.event, "operation", extOp.name, "event-flow");
+            }
+        }
+    }
+    // Actions calling cross-component APIs
+    for (const action of actions) {
+        let fromScreen = null;
+        let callsMethod = null;
+        let callsPath = null;
+        for (const item of action.body) {
+            if (item.type === "ActionFromClause")
+                fromScreen = item.screen;
+            if (item.type === "ActionCallsClause") {
+                callsMethod = item.method;
+                callsPath = item.path;
+            }
+        }
+        if (!callsMethod || !callsPath)
+            continue;
+        for (const api of snapshot.model.apis) {
+            const apiComp = ccMap.get(`api:${api.name}`);
+            if (!apiComp || apiComp === componentName)
+                continue;
+            const prefixDeco = api.decorators?.find((d) => d.name === "prefix");
+            const prefix = prefixDeco?.params?.[0] ? String(prefixDeco.params[0].value) : "";
+            for (const ep of api.endpoints) {
+                const fullPath = (prefix + ep.path).replace(/\/+$/, "") || "/";
+                const normalize = (p) => p.replace(/:[^/]+/g, ":param").replace(/\/+$/, "") || "/";
+                if (ep.method === callsMethod && normalize(fullPath) === normalize(callsPath)) {
+                    const apiName = api.name ?? "api";
+                    addGhostNode("api", apiName, apiComp);
+                    if (fromScreen && nodeIds.has(`screen:${fromScreen}`)) {
+                        addEdge("screen", fromScreen, "api", apiName, "screen-api");
+                    }
+                }
+            }
+        }
+    }
     return { nodes, edges };
 }
 function buildOverviewGraphHtml(graphData) {
@@ -535,6 +692,54 @@ function buildEntityGraphData(entities, enums, allEntities, componentName, entit
             }
         }
     }
+    // Reverse ghosts: external entities whose fields reference local entities
+    for (const extEntity of allEntities) {
+        if (localEntityNames.has(extEntity.name))
+            continue; // skip local
+        if (ghostNames.has(extEntity.name))
+            continue; // already tracked
+        let referencesLocal = false;
+        for (const f of extEntity.fields) {
+            const targetName = extractBaseTypeName(f.fieldType);
+            if (targetName && localEntityNames.has(targetName)) {
+                // External entity references a local entity — add reverse edge & ghost
+                const relationDec = f.decorators?.find((d) => d.name === "relation");
+                let cardinality = "ref";
+                if (relationDec) {
+                    const val = String(relationDec.params[0]?.value ?? "");
+                    if (val === "one_to_one" || val === "1:1")
+                        cardinality = "1:1";
+                    else if (val === "one_to_many" || val === "1:N")
+                        cardinality = "1:N";
+                    else if (val === "many_to_one" || val === "N:1")
+                        cardinality = "N:1";
+                    else if (val === "many_to_many" || val === "N:M")
+                        cardinality = "N:M";
+                    else
+                        cardinality = val;
+                }
+                else if (isArrayType(f.fieldType)) {
+                    cardinality = "1:N";
+                }
+                edges.push({ from: extEntity.name, to: targetName, field: f.name, cardinality });
+                referencesLocal = true;
+            }
+        }
+        // Also check extends/implements referencing local entities
+        if (extEntity.extends && localEntityNames.has(extEntity.extends)) {
+            edges.push({ from: extEntity.name, to: extEntity.extends, field: "", cardinality: "extends", edgeType: "extends" });
+            referencesLocal = true;
+        }
+        for (const iface of (extEntity.implements || [])) {
+            if (localEntityNames.has(iface)) {
+                edges.push({ from: extEntity.name, to: iface, field: "", cardinality: "implements", edgeType: "implements" });
+                referencesLocal = true;
+            }
+        }
+        if (referencesLocal) {
+            ghostNames.add(extEntity.name);
+        }
+    }
     // Add ghost nodes for external entities — include their fields and component
     for (const ghostName of ghostNames) {
         const ghostComp = entityComponentMap.get(ghostName);
@@ -546,6 +751,8 @@ function buildEntityGraphData(entities, enums, allEntities, componentName, entit
                 return { name: f.name, typeHtml, decorators: decs };
             })
             : [];
+        const ghostIsAbstract = ghostEntity?.decorators?.some((d) => d.name === "abstract") ?? false;
+        const ghostIsInterface = ghostEntity?.decorators?.some((d) => d.name === "interface") ?? false;
         nodes.push({
             id: ghostName,
             name: ghostName,
@@ -555,6 +762,10 @@ function buildEntityGraphData(entities, enums, allEntities, componentName, entit
             fields: ghostFields,
             ghost: true,
             ghostComponent: ghostComp || undefined,
+            isAbstract: ghostIsAbstract,
+            isInterface: ghostIsInterface,
+            extendsName: ghostEntity?.extends || null,
+            implementsNames: ghostEntity?.implements || [],
         });
     }
     // Add enum nodes
@@ -956,103 +1167,106 @@ function buildFlowCards(flows, componentName) {
         .join("");
     return `<div class="scope-entity-cards">${flowItems}</div>`;
 }
-function buildStateGraphData(state, componentName, ccMap, allEvents, allEnums) {
+function buildCombinedStateGraphData(states, componentName, ccMap, allEvents, allEnums) {
     const allEventNames = new Set(allEvents.map((e) => e.name));
-    const stateNames = new Set();
-    const fromNames = new Set();
-    const wildcardTargets = new Set();
+    const machines = [];
+    const stateNodes = [];
     const eventNodeMap = new Map();
+    const enumNodeMap = new Map();
     const edges = [];
-    // Collect states and build edges:
-    // - state → state (transition) with event name as label
-    // - event → state (trigger) showing which event causes entry
-    const triggerEdgeSet = new Set(); // deduplicate event→state trigger edges
-    for (const t of state.transitions) {
-        if (t.from !== "*") {
-            stateNames.add(t.from);
-            fromNames.add(t.from);
-        }
-        stateNames.add(t.to);
-        if (t.from === "*") {
-            wildcardTargets.add(t.to);
-        }
-        // State → State transition edge (with event name as label)
-        if (t.from !== "*") {
-            edges.push({
-                from: `state:${t.from}`,
-                to: `state:${t.to}`,
-                label: t.event || undefined,
-                edgeType: "transition",
-            });
-        }
-        // Event → State trigger edge (event triggers entry to target state)
-        if (t.event && allEventNames.has(t.event)) {
-            const eventKey = `event:${t.event}`;
-            if (!eventNodeMap.has(eventKey)) {
-                const eventComp = ccMap.get(`event:${t.event}`);
-                const href = eventComp ? constructLink(eventComp, "event", t.event) : "#";
-                eventNodeMap.set(eventKey, { id: eventKey, name: t.event, href, constructType: "event" });
+    const triggerEdgeSet = new Set();
+    for (const state of states) {
+        const machineName = state.name;
+        const stateHref = constructLink(componentName, "state", machineName);
+        const enumComp = ccMap.get(`enum:${state.enumRef}`);
+        const enumHref = enumComp ? constructLink(enumComp, "enum", state.enumRef) : "#";
+        machines.push({ name: machineName, stateHref, enumRef: state.enumRef, enumHref });
+        // Collect states for this machine
+        const localStateNames = new Set();
+        const localFromNames = new Set();
+        const wildcardTargets = new Set();
+        for (const t of state.transitions) {
+            if (t.from !== "*") {
+                localStateNames.add(t.from);
+                localFromNames.add(t.from);
             }
-            // Deduplicate: same event triggering same state only once
-            const triggerKey = `${eventKey}->${t.to}`;
-            if (!triggerEdgeSet.has(triggerKey)) {
-                triggerEdgeSet.add(triggerKey);
+            localStateNames.add(t.to);
+            if (t.from === "*") {
+                wildcardTargets.add(t.to);
+            }
+            // State → State transition (prefixed IDs for uniqueness)
+            if (t.from !== "*") {
                 edges.push({
-                    from: eventKey,
-                    to: `state:${t.to}`,
-                    label: "trigger",
-                    edgeType: "trigger",
+                    from: `state:${machineName}:${t.from}`,
+                    to: `state:${machineName}:${t.to}`,
+                    label: t.event || undefined,
+                    edgeType: "transition",
                 });
             }
+            // Event → State trigger edge
+            if (t.event && allEventNames.has(t.event)) {
+                const eventKey = `event:${t.event}`;
+                if (!eventNodeMap.has(eventKey)) {
+                    const evComp = ccMap.get(`event:${t.event}`);
+                    const href = evComp ? constructLink(evComp, "event", t.event) : "#";
+                    eventNodeMap.set(eventKey, { id: eventKey, name: t.event, href, constructType: "event", machines: [machineName] });
+                }
+                else {
+                    const existing = eventNodeMap.get(eventKey);
+                    if (!existing.machines.includes(machineName)) {
+                        existing.machines.push(machineName);
+                    }
+                }
+                const triggerTarget = `state:${machineName}:${t.to}`;
+                const triggerKey = `${eventKey}->${triggerTarget}`;
+                if (!triggerEdgeSet.has(triggerKey)) {
+                    triggerEdgeSet.add(triggerKey);
+                    edges.push({ from: eventKey, to: triggerTarget, label: "trigger", edgeType: "trigger" });
+                }
+            }
         }
-    }
-    // Determine initial and terminal states
-    const stateNodes = [];
-    for (const name of stateNames) {
-        const isInitial = wildcardTargets.has(name) || (!fromNames.has(name) && stateNames.size > 1 && name === [...stateNames][0]);
-        const isTerminal = !fromNames.has(name);
-        stateNodes.push({
-            id: `state:${name}`,
-            name,
-            isInitial: isInitial || undefined,
-            isTerminal: isTerminal || undefined,
-        });
-    }
-    // If no state is initial (no wildcard, all appear in from), mark the first from-state as initial
-    if (!stateNodes.some(n => n.isInitial) && state.transitions.length > 0) {
-        const firstFrom = state.transitions.find((t) => t.from !== "*");
-        if (firstFrom) {
-            const node = stateNodes.find(n => n.name === firstFrom.from);
-            if (node)
-                node.isInitial = true;
+        // Build state nodes for this machine
+        const machineStateNodes = [];
+        for (const name of localStateNames) {
+            const isInitial = wildcardTargets.has(name) || (!localFromNames.has(name) && localStateNames.size > 1 && name === [...localStateNames][0]);
+            const isTerminal = !localFromNames.has(name);
+            machineStateNodes.push({
+                id: `state:${machineName}:${name}`,
+                name,
+                machine: machineName,
+                isInitial: isInitial || undefined,
+                isTerminal: isTerminal || undefined,
+            });
         }
-    }
-    const enumComp = ccMap.get(`enum:${state.enumRef}`);
-    const enumHref = enumComp ? constructLink(enumComp, "enum", state.enumRef) : "#";
-    // Build enum node with values
-    let enumNode = null;
-    const enumDecl = allEnums.find((e) => e.name === state.enumRef);
-    if (enumDecl) {
-        const values = enumDecl.values.map((v) => typeof v === "string" ? v : v.name ?? String(v));
-        enumNode = {
-            id: `enum:${state.enumRef}`,
-            name: state.enumRef,
-            href: enumHref,
-            values,
-        };
-        // Connect enum to each state
-        for (const sn of stateNodes) {
-            edges.push({ from: enumNode.id, to: sn.id, edgeType: "enum-value" });
+        // If no initial state, mark the first from-state
+        if (!machineStateNodes.some(n => n.isInitial) && state.transitions.length > 0) {
+            const firstFrom = state.transitions.find((t) => t.from !== "*");
+            if (firstFrom) {
+                const node = machineStateNodes.find(n => n.name === firstFrom.from);
+                if (node)
+                    node.isInitial = true;
+            }
+        }
+        stateNodes.push(...machineStateNodes);
+        // Build enum node for this machine
+        const enumDecl = allEnums.find((e) => e.name === state.enumRef);
+        if (enumDecl) {
+            const enumId = `enum:${machineName}:${state.enumRef}`;
+            if (!enumNodeMap.has(enumId)) {
+                const values = enumDecl.values.map((v) => typeof v === "string" ? v : v.name ?? String(v));
+                enumNodeMap.set(enumId, { id: enumId, name: state.enumRef, href: enumHref, values, machine: machineName });
+                // Connect enum to each state in this machine
+                for (const sn of machineStateNodes) {
+                    edges.push({ from: enumId, to: sn.id, edgeType: "enum-value" });
+                }
+            }
         }
     }
     return {
-        stateMachineName: state.name,
-        stateHref: constructLink(componentName, "state", state.name),
-        enumRef: state.enumRef,
-        enumHref,
-        enumNode,
+        machines,
         stateNodes,
         eventNodes: Array.from(eventNodeMap.values()),
+        enumNodes: Array.from(enumNodeMap.values()),
         edges,
     };
 }
@@ -1109,6 +1323,7 @@ function buildApiGraphData(apis, operations, actions, componentName, snapshot, e
                 isExternal,
                 apiGroupName: apiName,
                 prefix,
+                href: constructLink(componentName, "api", apiName),
             });
         }
     }
@@ -1739,6 +1954,25 @@ function buildEventGraphData(events, componentName, snapshot, entityComponentMap
                 }
                 addEdge({ from: eventId, to: opId, label: "trigger", edgeType: "trigger" });
             }
+        }
+        // Flows triggered by this event (on EventName)
+        for (const flow of snapshot.model.flows) {
+            const triggersOnThis = flow.body.some((item) => item.type === "OnClause" && item.event === event.name);
+            if (!triggersOnThis)
+                continue;
+            const flowComp = ccMap.get(`flow:${flow.name}`) || componentName;
+            const flowId = `consumer-flow:${flow.name}`;
+            if (!consumerMap.has(flowId)) {
+                consumerMap.set(flowId, {
+                    id: flowId,
+                    name: flow.name,
+                    href: constructLink(flowComp, "flow", flow.name),
+                    constructType: "flow",
+                    component: flowComp,
+                    ghost: flowComp !== componentName || undefined,
+                });
+            }
+            addEdge({ from: eventId, to: flowId, label: "trigger", edgeType: "trigger" });
         }
         // API STREAM endpoints that return this event type
         for (const api of snapshot.model.apis) {
