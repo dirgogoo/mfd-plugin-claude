@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
+import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadModelSnapshot } from "./data.js";
@@ -91,8 +92,12 @@ const watcher = createWatcher(config.file, () => {
 });
 // ===== Hono App =====
 const app = new Hono();
-// Static files — __dirname is dist/visual/, static/ is at package root (2 levels up)
-const packageRoot = resolve(__dirname, "..", "..");
+// Static files — find the correct root containing static/
+// In dist: __dirname = dist/visual/ → 2 levels up to plugin root
+// In source (monorepo): __dirname = packages/mfd-visual/src/ → 1 level up
+const packageRoot = existsSync(resolve(__dirname, "..", "static"))
+    ? resolve(__dirname, "..")
+    : resolve(__dirname, "..", "..");
 app.use("/static/*", serveStatic({ root: packageRoot }));
 // API routes
 app.route("/", apiRoutes(() => snapshot));
