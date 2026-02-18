@@ -1,0 +1,1 @@
+{"version":3,"file":"diff.d.ts","sourceRoot":"","sources":["../../../src/mcp/tools/diff.ts"],"names":[],"mappings":"AAAA,OAAO,EAAgB,KAAK,YAAY,EAAE,MAAM,aAAa,CAAC;AAI9D,UAAU,QAAQ;IAChB,KAAK,EAAE,MAAM,CAAC;IACd,KAAK,EAAE,MAAM,CAAC;IACd,gBAAgB,CAAC,EAAE,OAAO,CAAC;CAC5B;AAED,wBAAgB,UAAU,CAAC,IAAI,EAAE,QAAQ,GAAG,YAAY,CAuBvD"}

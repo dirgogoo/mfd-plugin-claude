@@ -29,6 +29,27 @@ function baseTypeName(t) {
     }
 }
 /**
+ * Extract path parameters from a URL path (e.g. /users/:id -> ["id"])
+ */
+function extractPathParams(path) {
+    const params = [];
+    const regex = /:(\w+)/g;
+    let match;
+    while ((match = regex.exec(path)) !== null) {
+        params.push(match[1]);
+    }
+    return params;
+}
+/**
+ * Get field names from an entity by looking it up in the model.
+ */
+function getEntityFields(typeName, entities) {
+    const entity = entities.find((e) => e.name === typeName);
+    if (!entity)
+        return null;
+    return new Set(entity.fields.map((f) => f.name));
+}
+/**
  * OPERATION_EVENT_UNRESOLVED: Checks that operation emits/on clauses
  * reference declared events.
  *
@@ -68,6 +89,16 @@ export function operationCompleteness(doc) {
             const key = `${ep.method} ${fullPath}`;
             const inputType = ep.type === "ApiEndpointSimple" ? ep.inputType : ep.body;
             const returnType = ep.type === "ApiEndpointSimple" ? ep.returnType : ep.response;
+            // API_DUPLICATE_ENDPOINT: same METHOD+path in multiple API blocks
+            if (apiEndpoints.has(key)) {
+                diagnostics.push({
+                    code: "API_DUPLICATE_ENDPOINT",
+                    severity: "error",
+                    message: `Duplicate API endpoint '${key}' declared in multiple API blocks`,
+                    location: ep.loc || api.loc,
+                    help: `Remove the duplicate or use a different path`,
+                });
+            }
             apiEndpoints.set(key, { inputType: inputType ?? null, returnType: returnType ?? null });
         }
     }
@@ -131,6 +162,26 @@ export function operationCompleteness(doc) {
                             location: item.loc,
                             help: "Align the operation return type with the API endpoint return type, or update the endpoint",
                         });
+                    }
+                    // HANDLES_PARAM_MISMATCH: path has :id but input type has no matching field
+                    const pathParams = extractPathParams(item.path);
+                    if (pathParams.length > 0 && op.params[0]) {
+                        const inputTypeName = baseTypeName(op.params[0]);
+                        if (inputTypeName) {
+                            const fields = getEntityFields(inputTypeName, model.entities);
+                            if (fields) {
+                                const missing = pathParams.filter((p) => !fields.has(p));
+                                if (missing.length > 0) {
+                                    diagnostics.push({
+                                        code: "HANDLES_PARAM_MISMATCH",
+                                        severity: "warning",
+                                        message: `Operation '${op.name}' handles path with param(s) ':${missing.join("', ':")}' but input type '${inputTypeName}' has no matching field(s)`,
+                                        location: item.loc,
+                                        help: `Add field(s) '${missing.join("', '")}' to '${inputTypeName}' or use a type that includes them`,
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -202,6 +253,26 @@ export function operationCompleteness(doc) {
                             location: item.loc,
                             help: "Align the flow return type with the API endpoint return type, or update the endpoint",
                         });
+                    }
+                    // HANDLES_PARAM_MISMATCH: path has :id but input type has no matching field
+                    const pathParams = extractPathParams(item.path);
+                    if (pathParams.length > 0 && flow.params[0]) {
+                        const inputTypeName = baseTypeName(flow.params[0]);
+                        if (inputTypeName) {
+                            const fields = getEntityFields(inputTypeName, model.entities);
+                            if (fields) {
+                                const missing = pathParams.filter((p) => !fields.has(p));
+                                if (missing.length > 0) {
+                                    diagnostics.push({
+                                        code: "HANDLES_PARAM_MISMATCH",
+                                        severity: "warning",
+                                        message: `Flow '${flow.name}' handles path with param(s) ':${missing.join("', ':")}' but input type '${inputTypeName}' has no matching field(s)`,
+                                        location: item.loc,
+                                        help: `Add field(s) '${missing.join("', '")}' to '${inputTypeName}' or use a type that includes them`,
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }

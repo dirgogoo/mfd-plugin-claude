@@ -51,7 +51,7 @@ export function handleValidate(args) {
     // Show parse-level errors
     for (const pe of parseErrors) {
         lines.push(formatDiagnostic({
-            code: "E000",
+            code: pe.code ?? "E001",
             severity: "error",
             message: pe.message,
             location: pe.location,
@@ -59,7 +59,7 @@ export function handleValidate(args) {
         }, source));
         lines.push("");
     }
-    const result = validate(doc);
+    const result = validate(doc, { strict: args.strict });
     const totalErrors = parseErrors.length + result.errors.length;
     if (totalErrors === 0 && result.warnings.length === 0) {
         lines.push(`\u2713 ${absPath} is valid`);

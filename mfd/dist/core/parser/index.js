@@ -2,7 +2,7 @@ import peggy from "peggy";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { MfdParseError } from "./errors.js";
+import { MfdParseError, classifyParseError } from "./errors.js";
 export * from "./ast.js";
 export { MfdParseError } from "./errors.js";
 let _parser = null;
@@ -74,8 +74,10 @@ export function collectErrorNodes(doc) {
         for (const item of items) {
             if (item.type === "ErrorNode") {
                 const err = item;
+                const message = `Unexpected syntax: ${err.raw}`;
                 diagnostics.push({
-                    message: `Unexpected syntax: ${err.raw}`,
+                    code: classifyParseError(message),
+                    message,
                     location: err.loc,
                     context: err.context,
                     raw: err.raw,
@@ -141,6 +143,7 @@ export function parseWithRecovery(input, options = {}) {
         const fatalDiagnostics = [];
         if (firstError instanceof MfdParseError) {
             fatalDiagnostics.push({
+                code: firstError.code,
                 message: firstError.message,
                 location: firstError.location,
                 context: "top-level",

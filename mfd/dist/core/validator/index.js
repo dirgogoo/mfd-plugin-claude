@@ -18,6 +18,7 @@ import { actionCompleteness } from "./rules/action-completeness.js";
 import { streamEndpointValidation } from "./rules/stream-endpoint-validation.js";
 import { inheritanceValidation } from "./rules/inheritance-validation.js";
 import { elementCompleteness } from "./rules/element-completeness.js";
+import { orphanDetection } from "./rules/orphan-detection.js";
 const allRules = [
     referentialIntegrity,
     circularDeps,
@@ -39,14 +40,24 @@ const allRules = [
     streamEndpointValidation,
     inheritanceValidation,
     elementCompleteness,
+    orphanDetection,
 ];
 /**
  * Validate an MFD document against all semantic rules.
+ * When `strict` is true, all warnings are promoted to errors.
  */
-export function validate(doc) {
+export function validate(doc, options = {}) {
     const diagnostics = [];
     for (const rule of allRules) {
         diagnostics.push(...rule(doc));
+    }
+    // In strict mode, promote all warnings to errors
+    if (options.strict) {
+        for (const d of diagnostics) {
+            if (d.severity === "warning") {
+                d.severity = "error";
+            }
+        }
     }
     const errors = diagnostics.filter((d) => d.severity === "error");
     const warnings = diagnostics.filter((d) => d.severity === "warning");

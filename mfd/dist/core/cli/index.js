@@ -23,6 +23,7 @@ program
     .description("Validate an MFD file")
     .option("-r, --resolve", "Force resolve includes")
     .option("--no-resolve", "Force single-file mode (skip auto-detect)")
+    .option("-s, --strict", "Strict mode: promote all warnings to errors")
     .action(validateCommand);
 program
     .command("diff <file1> <file2>")

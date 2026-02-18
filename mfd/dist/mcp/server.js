@@ -56,6 +56,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                         description: "Whether to resolve include directives (default: false)",
                         default: false,
                     },
+                    strict: {
+                        type: "boolean",
+                        description: "Strict mode: promote all warnings to errors (default: false)",
+                        default: false,
+                    },
                 },
                 required: ["file"],
             },
