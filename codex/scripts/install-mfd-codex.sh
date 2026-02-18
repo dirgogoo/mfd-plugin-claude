@@ -13,10 +13,11 @@ Instala a toolchain MFD para o ambiente atual do Codex.
 
 Options:
   --bin-dir PATH   Diretorio dos binarios (padrao: ~/.local/bin)
-  --force          Recria links mesmo se ja existirem
+  --force          Recria links e sobrescreve skills mesmo se ja existirem
   --no-deps        Pula instalacao de dependencias npm
   --no-mcp         Pula registro do MCP server no Codex
   --no-agents      Pula copia do AGENTS.md para o projeto
+  --no-skills      Pula instalacao das skills em .agents/skills/
   --help           Exibe esta mensagem
 USAGE
 }
@@ -25,6 +26,7 @@ FORCE=false
 SKIP_DEPS=false
 SKIP_MCP=false
 SKIP_AGENTS=false
+SKIP_SKILLS=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,6 +41,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-agents)
       SKIP_AGENTS=true
+      ;;
+    --no-skills)
+      SKIP_SKILLS=true
       ;;
     --bin-dir)
       if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
@@ -145,16 +150,64 @@ fi
 if [[ "$SKIP_AGENTS" == false ]]; then
   if [[ -f "$PLUGIN_DIR/AGENTS.md" ]]; then
     AGENTS_DEST="${AGENTS_DEST:-.codex/AGENTS.md}"
-    if [[ -f "$AGENTS_DEST" ]]; then
+    if [[ -f "$AGENTS_DEST" ]] && [[ "$FORCE" != true ]]; then
       echo ""
-      echo "AGENTS.md ja existe em $AGENTS_DEST (nao sobrescrevendo)."
-      echo "  Para atualizar, remova e rode novamente."
+      echo "AGENTS.md ja existe em $AGENTS_DEST (use --force para sobrescrever)."
     else
       mkdir -p "$(dirname "$AGENTS_DEST")"
       cp "$PLUGIN_DIR/AGENTS.md" "$AGENTS_DEST"
       echo ""
       echo "Copiado: AGENTS.md -> $AGENTS_DEST"
     fi
+  fi
+fi
+
+# --- Skills (.agents/skills/) ---
+
+if [[ "$SKIP_SKILLS" == false ]]; then
+  SKILLS_SRC="$PLUGIN_DIR/skills"
+  SKILLS_DEST=".agents/skills"
+
+  if [[ -d "$SKILLS_SRC" ]]; then
+    echo ""
+    echo "Instalando skills em $SKILLS_DEST/..."
+    mkdir -p "$SKILLS_DEST"
+
+    INSTALLED=0
+    for skill_dir in "$SKILLS_SRC"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      skill_name="$(basename "$skill_dir")"
+      dest="$SKILLS_DEST/$skill_name"
+
+      if [[ -d "$dest" ]] && [[ "$FORCE" != true ]]; then
+        echo "  $skill_name: ja existe (use --force para sobrescrever)"
+        continue
+      fi
+
+      rm -rf "$dest"
+      cp -r "$skill_dir" "$dest"
+      echo "  $skill_name: instalado"
+      INSTALLED=$((INSTALLED + 1))
+    done
+
+    # Also copy council prompts needed by council skill
+    if [[ -d "$PLUGIN_DIR/prompts" ]]; then
+      PROMPTS_DEST="$SKILLS_DEST/council/prompts"
+      if [[ -d "$SKILLS_DEST/council" ]]; then
+        mkdir -p "$PROMPTS_DEST"
+        for prompt_file in "$PLUGIN_DIR/prompts"/architect.md "$PLUGIN_DIR/prompts"/backend.md "$PLUGIN_DIR/prompts"/fullstack.md "$PLUGIN_DIR/prompts"/code-review.md "$PLUGIN_DIR/prompts"/council-protocol.md; do
+          if [[ -f "$prompt_file" ]]; then
+            cp "$prompt_file" "$PROMPTS_DEST/"
+          fi
+        done
+        echo "  council/prompts: copiados"
+      fi
+    fi
+
+    echo "Skills instaladas: $INSTALLED novas."
+  else
+    echo ""
+    echo "Aviso: diretorio de skills nao encontrado em $SKILLS_SRC"
   fi
 fi
 
@@ -185,6 +238,14 @@ if command -v mfd-mcp >/dev/null 2>&1; then
 else
   echo "  mfd-mcp: NAO ENCONTRADO (verifique o PATH)"
   ERRORS=$((ERRORS + 1))
+fi
+
+# Count installed skills
+if [[ -d ".agents/skills" ]]; then
+  SKILL_COUNT=$(find .agents/skills -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
+  echo "  skills: $SKILL_COUNT em .agents/skills/"
+else
+  echo "  skills: nenhuma instalada"
 fi
 
 echo ""
