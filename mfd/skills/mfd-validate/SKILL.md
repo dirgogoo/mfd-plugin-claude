@@ -66,6 +66,8 @@ Validate an MFD-DSL file for syntax and semantic correctness.
    - `FLOW_HANDLES_UNRESOLVED` — Flow `handles METHOD /path` references an undeclared API endpoint
    - `FLOW_CALLS_FORBIDDEN` — Flow uses `calls` which is not allowed. Only operations can consume endpoints with `calls`; flows can only serve them with `handles`
    - `API_ENDPOINT_ORPHAN` — API endpoint has no flow or operation handling it. Every non-@external endpoint needs a `handles METHOD /path` in the responsible flow or operation
+   - `HANDLES_INPUT_MISMATCH` — Flow/operation input type differs from the API endpoint's expected input type
+   - `HANDLES_RETURN_MISMATCH` — Flow/operation return type differs from the API endpoint's declared return type
    - `IMPL_DEPRECATED_VALUE` — `@impl` uses deprecated label (done/backend/frontend/partial) instead of file path
    - `IMPL_INVALID_VALUE` — `@impl` value is not a file path or known label
 
@@ -93,6 +95,8 @@ Validate an MFD-DSL file for syntax and semantic correctness.
    - `FLOW_HANDLES_UNRESOLVED` → "Declare the endpoint in an api block, or check the METHOD /path"
    - `FLOW_CALLS_FORBIDDEN` → "Move 'calls' to an operation, or use 'handles' if this flow serves the endpoint"
    - `API_ENDPOINT_ORPHAN` → "Add 'handles METHOD /path' inside the flow or operation that serves this endpoint"
+   - `HANDLES_INPUT_MISMATCH` → "Align the flow/operation parameter with the endpoint input type, or update the API endpoint"
+   - `HANDLES_RETURN_MISMATCH` → "Align the flow/operation return type with the endpoint return type, or update the API endpoint"
    - `IMPL_DEPRECATED_VALUE` → "Replace @impl(done) with @impl(src/path/to/file.ts) pointing to the actual implementation"
    - `IMPL_INVALID_VALUE` → "Use a relative file path like @impl(src/models/user.ts)"
 

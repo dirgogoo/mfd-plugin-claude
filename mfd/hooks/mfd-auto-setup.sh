@@ -4,14 +4,28 @@
 
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-# 1. Install npm dependencies if missing
+# 1. Install npm dependencies if missing or incomplete
+# Check for critical dependency: SDK must have .js files (not just .d.ts/.js.map)
+SDK_PKG="$PLUGIN_DIR/node_modules/@modelcontextprotocol/sdk/package.json"
+SDK_SERVER_JS="$PLUGIN_DIR/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js"
+NEEDS_INSTALL=false
+
 if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-  npm install --production --prefix "$PLUGIN_DIR" --silent 2>/dev/null
-  if [ $? -eq 0 ]; then
+  NEEDS_INSTALL=true
+elif [ ! -f "$SDK_PKG" ] || [ ! -f "$SDK_SERVER_JS" ]; then
+  # Corrupted install — nuke and reinstall
+  rm -rf "$PLUGIN_DIR/node_modules" "$PLUGIN_DIR/package-lock.json"
+  npm cache clean --force --silent 2>/dev/null
+  NEEDS_INSTALL=true
+fi
+
+if [ "$NEEDS_INSTALL" = true ]; then
+  (cd "$PLUGIN_DIR" && npm install --omit=dev --silent 2>/dev/null)
+  if [ $? -eq 0 ] && [ -f "$SDK_SERVER_JS" ]; then
     echo "[MFD] Dependencies installed successfully."
   else
     echo "[MFD] Warning: Failed to install dependencies. MCP tools may not work."
-    echo "[MFD] Run manually: cd $PLUGIN_DIR && npm install --production"
+    echo "[MFD] Run manually: cd $PLUGIN_DIR && rm -rf node_modules && npm install --omit=dev"
   fi
 fi
 

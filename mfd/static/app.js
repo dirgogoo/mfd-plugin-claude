@@ -13,6 +13,7 @@ const canvasInstances = new Map();
 const entityGraphInstances = new Map();
 let activeTab = null;
 let focusedListIdx = -1;
+const NODE_FILTER_STORAGE_PREFIX = 'scope-node-filter:v1';
 
 // ===== Position Persistence (localStorage) =====
 
@@ -180,6 +181,23 @@ class DiagramCanvas {
 
 // ===== BaseGraph — Shared interactive graph infrastructure =====
 
+function normalizeNodeType(value) {
+  if (!value) return '';
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function humanizeNodeType(value) {
+  return String(value || 'unknown')
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 class BaseGraph {
   /**
    * @param {HTMLElement} container — div with data-graph
@@ -197,6 +215,8 @@ class BaseGraph {
     this.data = this._parseData(container);
     this.nodePositions = new Map();
     this.nodeElements = new Map();
+    this.nodeTypes = new Map();
+    this.nodeTypeFilter = null;
     this.zoom = 1;
     this.panX = 0;
     this.panY = 0;
@@ -439,6 +459,8 @@ class BaseGraph {
     if (data.ghost) div.classList.add('ghost');
     div.dataset.nodeId = data.id;
     div.dataset.href = data.href;
+    const nodeType = normalizeNodeType(data.constructType);
+    if (nodeType) div.dataset.nodeType = nodeType;
     return div;
   }
 
@@ -564,8 +586,87 @@ class BaseGraph {
 
   /** Register node in world + nodeElements map */
   registerNode(div, id) {
+    const typeHint = normalizeNodeType(div.dataset.nodeType);
+    div.dataset.nodeType = typeHint || this._inferNodeType(div);
+    this.nodeTypes.set(id, div.dataset.nodeType);
     this.worldEl.appendChild(div);
     this.nodeElements.set(id, div);
+  }
+
+  _inferNodeType(div) {
+    const classList = Array.from(div.classList);
+    const directMap = new Map([
+      ['scope-enum-node', 'enum'],
+      ['scope-entity-node', 'entity'],
+      ['scope-flow-node', 'flow'],
+      ['scope-flow-io-node', 'entity'],
+      ['scope-flow-event-node', 'event'],
+      ['scope-flow-endpoint-node', 'api'],
+      ['scope-operation-node', 'operation'],
+      ['scope-rule-node', 'rule'],
+      ['scope-event-node', 'event'],
+      ['scope-state-node', 'state'],
+      ['scope-state-event-node', 'event'],
+      ['scope-state-enum-node', 'enum'],
+      ['scope-screen-node', 'screen'],
+      ['scope-screen-element-node', 'element'],
+      ['scope-screen-action-node', 'action'],
+      ['scope-screen-api-node', 'api'],
+      ['scope-screen-entity-node', 'entity'],
+      ['scope-screen-signal-node', 'signal'],
+      ['scope-api-endpoint-node', 'api'],
+      ['scope-api-handler-node', 'operation'],
+      ['scope-api-consumer-node', 'action'],
+      ['scope-api-construct-node', 'construct'],
+      ['scope-journey-screen-node', 'screen'],
+      ['scope-journey-trigger-node', 'event'],
+      ['scope-journey-action-node', 'action'],
+      ['scope-journey-special-node', 'special'],
+      ['scope-component-node', 'component'],
+      ['scope-overview-node', 'construct'],
+      ['scope-graph-node', 'construct'],
+    ]);
+
+    for (const [cls, type] of directMap) {
+      if (div.classList.contains(cls)) return type;
+    }
+
+    for (const cls of classList) {
+      const m1 = cls.match(/^scope-(?:event|flow|screen|api|state|journey|overview|component)-(.+)-node$/);
+      if (m1 && m1[1] && m1[1] !== 'context') {
+        return normalizeNodeType(m1[1]);
+      }
+    }
+
+    return 'unknown';
+  }
+
+  setNodeTypeFilter(filter) {
+    if (filter === null || filter === undefined) {
+      this.nodeTypeFilter = null;
+    } else {
+      this.nodeTypeFilter = new Set(filter);
+    }
+    this.applyNodeVisibility();
+    this.renderEdges();
+  }
+
+  isNodeTypeVisible(nodeId) {
+    if (this.nodeTypeFilter === null) return true;
+    const type = this.nodeTypes.get(nodeId);
+    if (!type) return true;
+    return this.nodeTypeFilter.has(type);
+  }
+
+  isEdgeVisible(edge) {
+    return this.isNodeTypeVisible(edge.from) && this.isNodeTypeVisible(edge.to);
+  }
+
+  applyNodeVisibility() {
+    for (const [id, el] of this.nodeElements) {
+      const show = this.isNodeTypeVisible(id);
+      el.style.display = show ? '' : 'none';
+    }
   }
 }
 
@@ -690,6 +791,7 @@ class EntityGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -1368,6 +1470,7 @@ class FlowGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -1803,6 +1906,7 @@ class EventGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -2224,6 +2328,7 @@ class StateGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderStateEdge(edge);
     }
   }
@@ -2810,6 +2915,7 @@ class ScreenGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -3214,6 +3320,7 @@ class ApiGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -3655,6 +3762,7 @@ class JourneyGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -3921,6 +4029,7 @@ class OverviewGraph extends BaseGraph {
     this._typeColors = typeColors;
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -4224,6 +4333,7 @@ class ComponentGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -4522,6 +4632,7 @@ document.addEventListener('mousemove', (e) => {
 // ===== Phase 3: Component Tabs =====
 
 window.switchTab = function(tabName) {
+  closeNodeFilterPanel();
   // Sync tab panels
   const panels = document.querySelectorAll('.scope-tab-panel');
   panels.forEach(panel => {
@@ -4567,6 +4678,10 @@ window.switchTab = function(tabName) {
   activeTab = tabName;
   focusedListIdx = -1;
   updateFocusedItem();
+
+  if (getNavLevel() === 'component') {
+    applyNodeTypeFilterForCurrentScope();
+  }
 };
 
 function initDiagramCanvasesIn(parent) {
@@ -5124,6 +5239,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const nodeFilterPanel = document.getElementById('node-filter-panel');
+  if (nodeFilterPanel) {
+    nodeFilterPanel.addEventListener('click', handleNodeFilterPanelClick);
+  }
+
   loadCommandPaletteData();
 
   // Apply entering animation
@@ -5169,6 +5289,227 @@ function getFrameTabIds() {
     .map(el => el.dataset.tab);
 }
 
+function getActiveTabPanel() {
+  return document.querySelector('.scope-tab-panel.active');
+}
+
+function getNodeFilterScope() {
+  if (getNavLevel() !== 'component') return null;
+  const frameNav = document.getElementById('frame-nav');
+  if (!frameNav) return null;
+  const component = frameNav.dataset.component || '';
+  const tab = activeTab || getFrameTabIds()[0] || 'overview';
+  if (!component || !tab) return null;
+  return { component, tab };
+}
+
+function getNodeFilterKey(scope) {
+  return `${NODE_FILTER_STORAGE_PREFIX}:${encodeURIComponent(scope.component)}:${encodeURIComponent(scope.tab)}`;
+}
+
+function getNodeFilterFromStorage(scope, availableTypes) {
+  const key = getNodeFilterKey(scope);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    if (parsed.length === 0) return new Set();
+
+    const availableSet = new Set(availableTypes.map(t => t.type));
+    const filtered = parsed
+      .map((item) => normalizeNodeType(item))
+      .filter((item) => item && availableSet.has(item));
+    if (filtered.length === 0) return null;
+    return new Set(filtered);
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveNodeFilterToStorage(scope, filterSet) {
+  const key = getNodeFilterKey(scope);
+  if (filterSet === null) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.setItem(key, JSON.stringify(Array.from(filterSet.values())));
+}
+
+function getNodeTypesFromPanel(panel) {
+  const scope = panel || document.getElementById('canvas');
+  if (!scope) return [];
+  const nodes = scope.querySelectorAll('.scope-graph-node[data-node-type]');
+  const counter = new Map();
+  nodes.forEach((node) => {
+    const type = normalizeNodeType(node.dataset.nodeType) || 'unknown';
+    if (type === 'unknown') return;
+    counter.set(type, (counter.get(type) || 0) + 1);
+  });
+  return Array.from(counter.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([type, count]) => ({ type, label: humanizeNodeType(type), count }));
+}
+
+function getAllGraphMaps() {
+  return [
+    entityGraphInstances,
+    flowGraphInstances,
+    eventGraphInstances,
+    stateGraphInstances,
+    screenGraphInstances,
+    apiGraphInstances,
+    journeyGraphInstances,
+    overviewGraphInstances,
+    componentGraphInstances
+  ];
+}
+
+function getGraphInstancesForPanel(panel) {
+  const activePanel = panel || getActiveTabPanel();
+  const result = [];
+  for (const map of getAllGraphMaps()) {
+    for (const [container, graph] of map) {
+      if (!activePanel || container.closest('.scope-tab-panel') === activePanel) {
+        result.push(graph);
+      }
+    }
+  }
+  return result;
+}
+
+const NODE_TYPE_COLOR_MAP = {
+  flow: 'var(--scope-type-flow)',
+  entity: 'var(--scope-type-entity)',
+  state: 'var(--scope-type-state)',
+  api: 'var(--scope-type-api)',
+  screen: 'var(--scope-type-screen)',
+  event: 'var(--scope-type-event)',
+  signal: 'var(--scope-type-signal)',
+  operation: 'var(--scope-type-operation)',
+  rule: 'var(--scope-type-rule)',
+  journey: 'var(--scope-type-journey)',
+  enum: 'var(--scope-type-enum)',
+  element: 'var(--scope-type-element)',
+  action: 'var(--scope-type-action)',
+};
+
+function renderNodeFilterRows(types, filterSet) {
+  const list = document.getElementById('node-filter-list');
+  if (!list) return;
+
+  if (types.length === 0) {
+    list.innerHTML = '<div class="scope-node-filter-empty">No node types found in this view.</div>';
+    return;
+  }
+
+  const currentFilter = filterSet === null ? null : new Set(filterSet);
+  list.innerHTML = '';
+
+  for (const { type, label, count } of types) {
+    const checked = currentFilter === null || currentFilter.has(type);
+    const colorVar = NODE_TYPE_COLOR_MAP[type] || '#FFFFFF';
+
+    const row = document.createElement('label');
+    row.className = 'scope-node-filter-row';
+    row.style.setProperty('--scope-filter-type-color', colorVar);
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = checked;
+    checkbox.dataset.nodeType = type;
+
+    const wrapper = document.createElement('span');
+    wrapper.innerHTML =
+      `<span class="scope-node-filter-check">${checked ? '[x]' : '[ ]'}</span>` +
+      `<span class="scope-node-filter-dot"></span>` +
+      `<span class="scope-node-filter-type">${escapeHtml(label)}</span>` +
+      `<span class="scope-node-filter-count">${count}</span>`;
+
+    checkbox.addEventListener('change', (e) => {
+      const activeScope = getNodeFilterScope();
+      if (!activeScope) return;
+      let next = getNodeFilterStateForActivePanel();
+      if (next === null) {
+        next = new Set(types.map((item) => item.type));
+      }
+      if ((e.target).checked) {
+        next.add(type);
+      } else {
+        next.delete(type);
+      }
+      applyNodeTypeFilterForCurrentScope(null, next);
+      renderNodeFilterRows(types, next);
+      saveNodeFilterToStorage(activeScope, next);
+    });
+
+    row.append(checkbox, wrapper);
+    list.appendChild(row);
+  }
+}
+
+function getNodeFilterStateForActivePanel(explicitPanel) {
+  const scope = getNodeFilterScope();
+  if (!scope) return null;
+
+  const panel = explicitPanel || getActiveTabPanel() || document.getElementById('canvas');
+  const types = getNodeTypesFromPanel(panel);
+  return getNodeFilterFromStorage(scope, types);
+}
+
+function applyNodeTypeFilterForCurrentScope(panel, overrideFilter) {
+  const activePanel = panel || getActiveTabPanel() || document.getElementById('canvas');
+  if (!activePanel) return;
+
+  const scope = getNodeFilterScope();
+  if (!scope) {
+    for (const graph of getGraphInstancesForPanel(activePanel)) {
+      graph.setNodeTypeFilter(null);
+    }
+    return;
+  }
+
+  const types = getNodeTypesFromPanel(activePanel);
+  const filter = overrideFilter ?? getNodeFilterFromStorage(scope, types);
+  for (const graph of getGraphInstancesForPanel(activePanel)) {
+    graph.setNodeTypeFilter(filter);
+  }
+
+  const filterPanel = document.getElementById('node-filter-panel');
+  if (filterPanel?.classList.contains('open')) {
+    renderNodeFilterRows(types, filter);
+  }
+  saveNodeFilterToStorage(scope, filter);
+  return filter;
+}
+
+function openNodeFilterPanel() {
+  const panel = document.getElementById('node-filter-panel');
+  if (!panel) return;
+
+  const activePanel = getActiveTabPanel() || document.getElementById('canvas');
+  if (!activePanel) return;
+
+  const scope = getNodeFilterScope();
+  if (!scope) return;
+
+  const types = getNodeTypesFromPanel(activePanel);
+  const filter = getNodeFilterFromStorage(scope, types);
+  renderNodeFilterRows(types, filter);
+  saveNodeFilterToStorage(scope, filter);
+  panel.classList.add('open');
+}
+
+function closeNodeFilterPanel() {
+  const panel = document.getElementById('node-filter-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+function handleNodeFilterPanelClick(e) {
+  const panel = document.getElementById('node-filter-panel');
+  if (panel && e.target === panel) closeNodeFilterPanel();
+}
+
 // ===== Keyboard Shortcuts =====
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -5187,11 +5528,14 @@ document.addEventListener('keydown', (e) => {
   if (key === 'Escape') {
     const palette = document.getElementById('command-palette');
     const shortcuts = document.getElementById('shortcuts-panel');
+    const nodeFilterPanel = document.getElementById('node-filter-panel');
     const compPanel = document.querySelector('.scope-components-panel.open');
     if (palette?.classList.contains('open')) {
       closeCommandPalette();
     } else if (shortcuts?.classList.contains('open')) {
       shortcuts.classList.remove('open');
+    } else if (nodeFilterPanel?.classList.contains('open')) {
+      closeNodeFilterPanel();
     } else if (compPanel) {
       compPanel.classList.remove('open');
     } else if (level === 'construct') {
@@ -5220,6 +5564,15 @@ document.addEventListener('keydown', (e) => {
   if (key === '?') {
     const panel = document.getElementById('shortcuts-panel');
     if (panel) panel.classList.toggle('open');
+    return;
+  }
+
+  if (key === '.') {
+    const filterBtn = document.getElementById('frame-filter-btn');
+    if (level === 'component' && filterBtn) {
+      e.preventDefault();
+      openNodeFilterPanel();
+    }
     return;
   }
 
@@ -5381,6 +5734,9 @@ function setupFrameNavHandlers() {
   const searchBtn = document.getElementById('frame-search-btn');
   if (searchBtn) searchBtn.addEventListener('click', () => openCommandPalette());
 
+  const filterBtn = document.getElementById('frame-filter-btn');
+  if (filterBtn) filterBtn.addEventListener('click', () => openNodeFilterPanel());
+
   const helpBtn = document.getElementById('frame-help-btn');
   if (helpBtn) {
     helpBtn.addEventListener('click', () => {
@@ -5418,6 +5774,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ===== SPA Navigation (no full page reload) =====
 async function navigateSPA(href) {
+  closeCommandPalette();
+  closeNodeFilterPanel();
   const canvas = document.getElementById('canvas');
   if (canvas) canvas.classList.add('transitioning');
 
