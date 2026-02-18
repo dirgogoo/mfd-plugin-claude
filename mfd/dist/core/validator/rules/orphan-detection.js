@@ -101,7 +101,7 @@ export function orphanDetection(doc) {
             }
         }
         // ORPHAN_OPERATION: operation without handles and not referenced by flow steps
-        // Collect operation names referenced by flow steps
+        // Collect operation names referenced by flow steps and overrides
         const referencedOps = new Set();
         for (const flow of model.flows) {
             for (const item of flow.body) {
@@ -116,6 +116,13 @@ export function orphanDetection(doc) {
                         if (bMatch)
                             referencedOps.add(bMatch[1]);
                     }
+                }
+                if (item.type === "FlowOverrideStep") {
+                    // override target -> replacement: both reference operations
+                    referencedOps.add(item.target);
+                    const match = item.action.match(/^(\w+)/);
+                    if (match)
+                        referencedOps.add(match[1]);
                 }
             }
         }
