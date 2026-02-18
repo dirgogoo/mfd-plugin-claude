@@ -88,6 +88,8 @@ Dispatch all 3 simultaneously:
 
 **IMPORTANT:** Read the prompt files BEFORE dispatching subagents. Include the full prompt content in each Task call so subagents have the complete instructions. Subagents inherit MCP tools and can call `mfd_contract`, `mfd_query`, etc. directly.
 
+**MODEL:** Always use `model: "sonnet"` for all subagents. Do NOT use haiku — council reviews require the depth of Sonnet 4.6.
+
 **b) Collect verdicts:**
 
 Parse each subagent's response for the structured verdict format.
@@ -147,7 +149,7 @@ For each iteration:
 
 **a) Dispatch 1 subagent:**
 
-- **Code Reviewer** — `code-reviewer` subagent type
+- **Code Reviewer** — `code-reviewer` subagent type, `model: "sonnet"`
   - Read the code-review prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/code-review.md`
   - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
   - Task prompt: Include both prompts + the .mfd file path + the list of constructs with @impl paths + instruct to use MFD MCP tools and Read tool to compare code vs model
