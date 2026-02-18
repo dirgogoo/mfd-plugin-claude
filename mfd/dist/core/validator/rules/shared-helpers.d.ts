@@ -23,6 +23,12 @@ export declare function getEntityFields(typeName: string, entities: {
     }[];
 }[]): Set<string> | null;
 /**
+ * Collect all type names referenced by TypeExpr nodes across the entire model.
+ * Walks entity fields, element props/forms, flow params/return, operation params/return,
+ * API endpoint types, screen forms, event/signal fields, and inline object fields recursively.
+ */
+export declare function collectAllTypeReferences(model: CollectedModel): Set<string>;
+/**
  * Resolve all API endpoints from the model into a Map of "METHOD fullPath" -> type info.
  */
 export declare function resolveApiEndpoints(model: CollectedModel): Map<string, {

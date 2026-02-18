@@ -1,4 +1,5 @@
 import { collectModel } from "../collect.js";
+import { collectAllTypeReferences } from "./shared-helpers.js";
 /**
  * Orphan detection rules:
  *
@@ -187,6 +188,73 @@ export function orphanDetection(doc) {
                     message: `Signal '${signal.name}' is never emitted nor listened to by any action`,
                     location: signal.loc,
                     help: `Add 'on ${signal.name}' to an action to listen, or 'emits ${signal.name}' to emit it, or remove if unused`,
+                });
+            }
+        }
+    }
+    // ---- ORPHAN_ENTITY + ORPHAN_ENUM ----
+    const needTypeRefs = model.entities.length >= 2 || model.enums.length >= 2;
+    if (needTypeRefs) {
+        const usedTypes = collectAllTypeReferences(model);
+        // ORPHAN_ENTITY (opt-in: >= 2 entities)
+        if (model.entities.length >= 2) {
+            const inheritanceTargets = new Set();
+            for (const e of model.entities) {
+                if (e.extends)
+                    inheritanceTargets.add(e.extends);
+                for (const i of e.implements)
+                    inheritanceTargets.add(i);
+            }
+            for (const e of model.elements) {
+                if (e.extends)
+                    inheritanceTargets.add(e.extends);
+                for (const i of e.implements)
+                    inheritanceTargets.add(i);
+            }
+            for (const f of model.flows) {
+                if (f.extends)
+                    inheritanceTargets.add(f.extends);
+            }
+            for (const s of model.screens) {
+                if (s.extends)
+                    inheritanceTargets.add(s.extends);
+                for (const i of s.implements)
+                    inheritanceTargets.add(i);
+            }
+            for (const entity of model.entities) {
+                if (entity.decorators.some((d) => d.name === "abstract"))
+                    continue;
+                if (entity.decorators.some((d) => d.name === "interface"))
+                    continue;
+                if (usedTypes.has(entity.name))
+                    continue;
+                if (inheritanceTargets.has(entity.name))
+                    continue;
+                diagnostics.push({
+                    code: "ORPHAN_ENTITY",
+                    severity: "warning",
+                    message: `Entity '${entity.name}' is not referenced by any field type, parameter, or inheritance`,
+                    location: entity.loc,
+                    help: `Use '${entity.name}' as a field type, flow parameter/return, or API type — or remove if unused`,
+                });
+            }
+        }
+        // ORPHAN_ENUM (opt-in: >= 2 enums)
+        if (model.enums.length >= 2) {
+            const stateEnumRefs = new Set();
+            for (const state of model.states)
+                stateEnumRefs.add(state.enumRef);
+            for (const enumDecl of model.enums) {
+                if (usedTypes.has(enumDecl.name))
+                    continue;
+                if (stateEnumRefs.has(enumDecl.name))
+                    continue;
+                diagnostics.push({
+                    code: "ORPHAN_ENUM",
+                    severity: "warning",
+                    message: `Enum '${enumDecl.name}' is not referenced by any field type, parameter, or state machine`,
+                    location: enumDecl.loc,
+                    help: `Use '${enumDecl.name}' as a field type, state machine enumRef, or remove if unused`,
                 });
             }
         }

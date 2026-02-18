@@ -49,6 +49,98 @@ export function getEntityFields(typeName, entities) {
     return new Set(entity.fields.map((f) => f.name));
 }
 /**
+ * Collect all type names referenced by TypeExpr nodes across the entire model.
+ * Walks entity fields, element props/forms, flow params/return, operation params/return,
+ * API endpoint types, screen forms, event/signal fields, and inline object fields recursively.
+ */
+export function collectAllTypeReferences(model) {
+    const refs = new Set();
+    function walkType(t) {
+        if (!t)
+            return;
+        switch (t.type) {
+            case "ReferenceType":
+                refs.add(t.name);
+                break;
+            case "ArrayType":
+            case "OptionalType":
+                walkType(t.inner);
+                break;
+            case "UnionType":
+                for (const alt of t.alternatives)
+                    walkType(alt);
+                break;
+            case "InlineObjectType":
+                for (const f of t.fields)
+                    walkType(f.fieldType);
+                break;
+        }
+    }
+    // Entity fields
+    for (const e of model.entities) {
+        for (const f of e.fields)
+            walkType(f.fieldType);
+    }
+    // Enum — no TypeExpr refs
+    // Event fields
+    for (const e of model.events) {
+        for (const f of e.fields)
+            walkType(f.fieldType);
+    }
+    // Signal fields
+    for (const s of model.signals) {
+        for (const f of s.fields)
+            walkType(f.fieldType);
+    }
+    // Flow params + return
+    for (const f of model.flows) {
+        for (const p of f.params)
+            walkType(p);
+        walkType(f.returnType);
+    }
+    // Operation params + return
+    for (const o of model.operations) {
+        for (const p of o.params)
+            walkType(p);
+        walkType(o.returnType);
+    }
+    // API endpoints
+    for (const api of model.apis) {
+        for (const ep of api.endpoints) {
+            if (ep.type === "ApiEndpointSimple") {
+                walkType(ep.inputType);
+                walkType(ep.returnType);
+            }
+            else {
+                walkType(ep.body);
+                walkType(ep.response);
+                walkType(ep.query);
+            }
+        }
+    }
+    // Element props + forms
+    for (const el of model.elements) {
+        for (const item of el.body) {
+            if (item.type === "PropDecl")
+                walkType(item.propType);
+            if (item.type === "FormDecl") {
+                for (const f of item.fields)
+                    walkType(f.fieldType);
+            }
+        }
+    }
+    // Screen forms
+    for (const s of model.screens) {
+        for (const item of s.body) {
+            if (item.type === "FormDecl") {
+                for (const f of item.fields)
+                    walkType(f.fieldType);
+            }
+        }
+    }
+    return refs;
+}
+/**
  * Resolve all API endpoints from the model into a Map of "METHOD fullPath" -> type info.
  */
 export function resolveApiEndpoints(model) {

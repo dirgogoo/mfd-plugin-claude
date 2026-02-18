@@ -44,6 +44,32 @@ export function qualityGuards(doc) {
                 });
             }
         }
+        // ENTITY_EMPTY: skip @abstract and @interface (can be markers)
+        if (!isAbstract && !isInterface && entity.fields.length === 0) {
+            diagnostics.push({
+                code: "ENTITY_EMPTY",
+                severity: "warning",
+                message: `Entity '${entity.name}' has no fields`,
+                location: entity.loc,
+                help: "Add fields to define the entity's structure, or use @abstract/@interface if it's a base type",
+            });
+        }
+        // ENTITY_DUPLICATE_FIELD: always check (concrete and abstract)
+        const fieldNames = new Map();
+        for (const field of entity.fields) {
+            if (fieldNames.has(field.name)) {
+                diagnostics.push({
+                    code: "ENTITY_DUPLICATE_FIELD",
+                    severity: "error",
+                    message: `Entity '${entity.name}' has duplicate field '${field.name}' (first defined at line ${fieldNames.get(field.name)})`,
+                    location: field.loc,
+                    help: `Remove or rename one of the duplicate '${field.name}' fields`,
+                });
+            }
+            else {
+                fieldNames.set(field.name, field.loc.start.line);
+            }
+        }
         // ENTITY_TOO_MANY_FIELDS: skip @abstract
         if (!isAbstract && entity.fields.length >= 15) {
             diagnostics.push({
