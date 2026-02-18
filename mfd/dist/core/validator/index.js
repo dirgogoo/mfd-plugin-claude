@@ -19,6 +19,10 @@ import { streamEndpointValidation } from "./rules/stream-endpoint-validation.js"
 import { inheritanceValidation } from "./rules/inheritance-validation.js";
 import { elementCompleteness } from "./rules/element-completeness.js";
 import { orphanDetection } from "./rules/orphan-detection.js";
+import { qualityGuards } from "./rules/quality-guards.js";
+import { stateRigor } from "./rules/state-rigor.js";
+import { errorPathCoverage } from "./rules/error-path-coverage.js";
+import { godCoreDetection } from "./rules/god-core-detection.js";
 const allRules = [
     referentialIntegrity,
     circularDeps,
@@ -41,6 +45,10 @@ const allRules = [
     inheritanceValidation,
     elementCompleteness,
     orphanDetection,
+    qualityGuards,
+    stateRigor,
+    errorPathCoverage,
+    godCoreDetection,
 ];
 /**
  * Validate an MFD document against all semantic rules.

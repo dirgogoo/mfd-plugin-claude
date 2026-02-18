@@ -1,0 +1,76 @@
+import { collectModel } from "../collect.js";
+/**
+ * Quality guard rules for modeling best practices:
+ *
+ * ENTITY_NO_ID: Entity without an `id` field or any @unique field.
+ *   Skip: @abstract, @interface entities.
+ *
+ * ENTITY_TOO_MANY_FIELDS: Entity with 15+ fields.
+ *   Skip: @abstract entities.
+ *
+ * FLOW_TOO_FEW_STEPS: Flow with < 3 FlowStep items.
+ *   Skip: @abstract flows.
+ *
+ * FLOW_TOO_MANY_STEPS: Flow with > 7 FlowStep items.
+ *   Skip: @abstract flows.
+ */
+export function qualityGuards(doc) {
+    const model = collectModel(doc);
+    const diagnostics = [];
+    for (const entity of model.entities) {
+        const isAbstract = entity.decorators.some((d) => d.name === "abstract");
+        const isInterface = entity.decorators.some((d) => d.name === "interface");
+        // ENTITY_NO_ID: skip @abstract and @interface
+        if (!isAbstract && !isInterface) {
+            const hasId = entity.fields.some((f) => f.name === "id");
+            const hasUnique = entity.fields.some((f) => f.decorators.some((d) => d.name === "unique"));
+            if (!hasId && !hasUnique) {
+                diagnostics.push({
+                    code: "ENTITY_NO_ID",
+                    severity: "warning",
+                    message: `Entity '${entity.name}' has no identification field (id or @unique)`,
+                    location: entity.loc,
+                    help: "Add an 'id' field or mark a field with @unique",
+                });
+            }
+        }
+        // ENTITY_TOO_MANY_FIELDS: skip @abstract
+        if (!isAbstract && entity.fields.length >= 15) {
+            diagnostics.push({
+                code: "ENTITY_TOO_MANY_FIELDS",
+                severity: "warning",
+                message: `Entity '${entity.name}' has ${entity.fields.length} fields (threshold: 15) — consider splitting`,
+                location: entity.loc,
+                help: "Extract related fields into separate entities to improve cohesion",
+            });
+        }
+    }
+    for (const flow of model.flows) {
+        const isAbstract = flow.decorators.some((d) => d.name === "abstract");
+        if (isAbstract)
+            continue;
+        const stepCount = flow.body.filter((item) => item.type === "FlowStep").length;
+        // FLOW_TOO_FEW_STEPS
+        if (stepCount < 3) {
+            diagnostics.push({
+                code: "FLOW_TOO_FEW_STEPS",
+                severity: "warning",
+                message: `Flow '${flow.name}' has only ${stepCount} steps — consider using an operation instead`,
+                location: flow.loc,
+                help: "Flows with fewer than 3 steps may be better expressed as operations",
+            });
+        }
+        // FLOW_TOO_MANY_STEPS
+        if (stepCount > 7) {
+            diagnostics.push({
+                code: "FLOW_TOO_MANY_STEPS",
+                severity: "warning",
+                message: `Flow '${flow.name}' has ${stepCount} steps (threshold: 7) — consider decomposing`,
+                location: flow.loc,
+                help: "Extract sub-flows or operations to reduce complexity",
+            });
+        }
+    }
+    return diagnostics;
+}
+//# sourceMappingURL=quality-guards.js.map
