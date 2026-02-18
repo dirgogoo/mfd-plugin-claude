@@ -1517,6 +1517,87 @@ a:hover, .scope-construct-link:hover {
   color: var(--scope-done);
 }
 
+/* ===== NODE FILTER PANEL ===== */
+.scope-node-filter-panel {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.scope-node-filter-panel.open {
+  display: flex;
+}
+
+.scope-node-filter-content {
+  background: var(--scope-surface);
+  border: 1px solid var(--scope-border);
+  padding: var(--scope-space-6);
+  max-width: 460px;
+  width: 100%;
+}
+
+.scope-node-filter-content h3 {
+  font-size: var(--scope-text-lg);
+  font-weight: var(--scope-weight-bold);
+  margin-bottom: var(--scope-space-4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--scope-done);
+}
+
+.scope-node-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--scope-space-2);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.scope-node-filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--scope-space-2);
+  padding: var(--scope-space-2) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.scope-node-filter-row:last-child {
+  border-bottom: none;
+}
+
+.scope-node-filter-row input[type="checkbox"] {
+  accent-color: var(--scope-accent);
+  width: 14px;
+  height: 14px;
+}
+
+.scope-node-filter-row label {
+  flex: 1;
+  font-size: var(--scope-text-sm);
+  display: flex;
+  justify-content: space-between;
+}
+
+.scope-node-filter-row .scope-node-filter-type {
+  color: var(--scope-text-secondary);
+}
+
+.scope-node-filter-row .scope-node-filter-count {
+  font-size: var(--scope-text-xs);
+  color: var(--scope-text-tertiary);
+}
+
+.scope-node-filter-empty {
+  color: var(--scope-text-tertiary);
+  font-size: var(--scope-text-sm);
+  text-align: center;
+  padding: var(--scope-space-4) 0;
+}
+
 /* ===== EMPTY STATE ===== */
 .scope-empty-state {
   display: flex;

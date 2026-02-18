@@ -46,11 +46,13 @@ function renderFrameNav(options) {
             return `<a href="/component/${encodeURIComponent(compName)}?tab=${tab.id}" class="scope-frame-tab${isActive}" data-tab="${tab.id}" data-nav="tab-${tab.id}" onclick="event.preventDefault(); switchTab('${tab.id}')"><span class="scope-frame-tab-key">${num <= 9 ? num : ""}</span> ${escapeHtml(tab.label)} <span class="scope-frame-tab-count">${tab.count}</span></a>`;
         }).join("\n");
         const searchTab = `<span class="scope-frame-tab" data-nav="search" id="frame-search-btn"><span class="scope-frame-tab-key">/</span> search</span>`;
+        const filterTab = `<span class="scope-frame-tab" data-nav="filter" id="frame-filter-btn"><span class="scope-frame-tab-key">.</span> filter</span>`;
         const helpTab = `<span class="scope-frame-tab" data-nav="shortcuts" id="frame-help-btn"><span class="scope-frame-tab-key">?</span> help</span>`;
         return `<nav class="scope-frame-nav" id="frame-nav" data-level="component" data-component="${escapeHtml(compName)}">
       ${backTab}
       ${tabItems}
       ${searchTab}
+      ${filterTab}
       ${helpTab}
     </nav>`;
     }
@@ -92,6 +94,7 @@ function renderShortcutsPanel(options) {
     <div class="scope-shortcuts-content">
       <h3>Keyboard Shortcuts</h3>
       <div class="scope-shortcut-row"><span>Back to Components</span><span class="scope-shortcut-key">Esc</span></div>
+      <div class="scope-shortcut-row"><span>Filter Node Types</span><span class="scope-shortcut-key">.</span></div>
       <div class="scope-shortcut-row"><span>Switch Tab (1-9)</span><span class="scope-shortcut-key">1-9</span></div>
       <div class="scope-shortcut-row"><span>Cycle Tabs</span><span class="scope-shortcut-key">Tab</span></div>
       ${common}
@@ -117,6 +120,14 @@ function renderShortcutsPanel(options) {
       <div class="scope-shortcut-row"><span>Cycle Tabs</span><span class="scope-shortcut-key">Tab</span></div>
       <div class="scope-shortcut-row"><span>Go Up / Close</span><span class="scope-shortcut-key">Esc</span></div>
       ${common}
+    </div>
+  </div>`;
+}
+function renderNodeFilterPanel() {
+    return `<div class="scope-node-filter-panel" id="node-filter-panel">
+    <div class="scope-node-filter-content">
+      <h3>Node Filter</h3>
+      <div class="scope-node-filter-list" id="node-filter-list"></div>
     </div>
   </div>`;
 }
@@ -206,6 +217,8 @@ export function renderLayout(content, options) {
 
   <!-- Shortcuts Panel -->
   ${renderShortcutsPanel(options)}
+  <!-- Node Filter Panel -->
+  ${renderNodeFilterPanel()}
 
   <!-- Inline model components data for command palette -->
   <script type="application/json" id="model-components-data">${componentsJson}</script>
