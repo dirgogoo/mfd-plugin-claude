@@ -152,6 +152,8 @@ operation name(ParamType) -> ReturnType {
 
 flow name(ParamType) -> ReturnType | ErrorType {
   # Description of what this flow does
+  handles POST /v1/items           # serves this endpoint (flows only — operations use calls)
+  handles PUT /v1/items/:id        # can have multiple handles
   on TriggerEvent
   -> step_one(args)
   -> step_two(result)

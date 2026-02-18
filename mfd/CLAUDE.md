@@ -280,6 +280,8 @@ system "Nome" @version(1.0) {
     }
     flow nome(Param) -> Retorno | Erro {
       # Descricao semantica
+      handles POST /rota/items         # serve este endpoint (so flows — operations usam calls)
+      handles PUT /rota/items/:id      # pode ter multiplos handles
       on EventoGatilho
       -> passo(args)
       | condicao -> branch()

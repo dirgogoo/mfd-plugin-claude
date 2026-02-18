@@ -38,7 +38,8 @@ fi
 VALIDATION=$("$MFD_CLI" validate "$FILE_PATH" 2>&1)
 EXIT_CODE=$?
 
-if [[ $EXIT_CODE -ne 0 ]]; then
+# Exit codes: 0=clean, 1=errors, 2=warnings-only
+if [[ $EXIT_CODE -eq 1 ]]; then
   cat >&2 <<PROMPT
 [MFD — Validacao Obrigatoria ANTES de renderizar/visualizar]
 
@@ -55,6 +56,10 @@ ACAO OBRIGATORIA:
 3. SO ENTAO tente renderizar/visualizar novamente
 PROMPT
   exit 2
+elif [[ $EXIT_CODE -eq 2 ]]; then
+  # Warnings only — allow rendering but inform
+  echo "[MFD] Warnings encontrados (nao bloqueiam visualizacao):" >&2
+  echo "$VALIDATION" >&2
 fi
 
 exit 0

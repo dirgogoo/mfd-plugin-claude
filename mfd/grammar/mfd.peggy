@@ -284,6 +284,7 @@ FlowBody
 FlowBodyItem
   = OnClause
   / EmitsClause
+  / OperationHandlesClause
   / FlowOverrideStep
   / FlowStep
   / SemanticComment

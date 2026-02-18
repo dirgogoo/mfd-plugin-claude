@@ -2994,11 +2994,12 @@ class ApiGraph extends BaseGraph {
       this.registerNode(div, ep.id);
     }
 
-    // Handler nodes (left column — operations)
+    // Handler nodes (left column — operations/flows)
     for (const handler of this.data.handlers) {
-      const div = this.createNode(handler, 'scope-api-handler-node');
+      const handlerClass = handler.constructType === 'flow' ? 'scope-api-handler-node scope-api-handler-node--flow' : 'scope-api-handler-node';
+      const div = this.createNode(handler, handlerClass);
       div.appendChild(this.createHeader(handler));
-      div.appendChild(this.createTypeLabel('operation'));
+      div.appendChild(this.createTypeLabel(handler.constructType || 'operation'));
 
       // Signature
       const sigDiv = document.createElement('div');
