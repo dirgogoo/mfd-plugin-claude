@@ -403,7 +403,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     return handleReadResource(request.params.uri);
 });
 // --- Tool Dispatch ---
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+server.setRequestHandler(CallToolRequestSchema, async (request, _extra) => {
     const { name, arguments: args } = request.params;
     try {
         switch (name) {

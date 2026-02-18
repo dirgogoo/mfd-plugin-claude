@@ -278,7 +278,7 @@ export function renderSystemInfo(snapshot) {
         ["journeys", counts.journeys],
         ["deps", counts.deps],
         ["secrets", counts.secrets],
-    ].filter(([, v]) => v > 0);
+    ].filter((pair) => pair[1] > 0);
     const constructRows = constructTypes.map(([label, val]) => `<div class="sys-count-row"><span class="sys-count-label">${escapeHtml(label)}</span><span class="sys-count-val">${val}</span></div>`).join("\n      ");
     // Component summary rows with status and description
     const compSummaryRows = model.components.map((comp) => {

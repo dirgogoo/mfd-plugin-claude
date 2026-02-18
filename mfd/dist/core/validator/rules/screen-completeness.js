@@ -18,8 +18,8 @@ export function screenCompleteness(doc) {
             if (item.type === "ActionFromClause") {
                 referencedScreens.add(item.screen);
             }
-            if (item.type === "ActionResultBranch" && item.target !== "end") {
-                referencedScreens.add(item.target);
+            if (item.type === "ActionResult" && item.screen !== "end") {
+                referencedScreens.add(item.screen);
             }
         }
     }

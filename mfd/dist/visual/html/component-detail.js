@@ -1679,7 +1679,7 @@ function buildScreenGraphData(screens, elements, actions, componentName, snapsho
     const screenToElements = new Map();
     // Collect all API endpoints in this component for matching
     const comp = snapshot.model.components.find((c) => c.name === componentName);
-    const compApis = comp ? comp.body.filter((b) => b.type === "ApiDecl") : [];
+    const compApis = (comp ? comp.body.filter((b) => b.type === "ApiDecl") : []);
     const resolvedEndpoints = [];
     for (const api of compApis) {
         const prefixDec = api.decorators?.find((d) => d.name === "prefix");
@@ -1687,7 +1687,7 @@ function buildScreenGraphData(screens, elements, actions, componentName, snapsho
         const apiName = api.name || "api";
         for (const ep of api.endpoints) {
             const fullPath = prefix + ep.path;
-            const retType = ep.returnType || ep.response;
+            const retType = ep.type === "ApiEndpointSimple" ? ep.returnType : ep.response;
             const returnTypeStr = retType ? formatType(retType) : null;
             const epId = `api:${ep.method}:${fullPath}`;
             resolvedEndpoints.push({
