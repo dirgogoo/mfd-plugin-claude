@@ -1,0 +1,8 @@
+{
+  "name": "MFD-Council",
+  "description": "Multi-agent review council for MFD models — 3 perspectives review and auto-fix until consensus",
+  "author": {
+    "name": "MFD Project",
+    "email": "mfd@example.com"
+  }
+}
