@@ -166,7 +166,7 @@ fi
 
 if [[ "$SKIP_SKILLS" == false ]]; then
   SKILLS_SRC="$PLUGIN_DIR/skills"
-  SKILLS_DEST=".agents/skills"
+  SKILLS_DEST="${HOME}/.codex/skills"
 
   if [[ -d "$SKILLS_SRC" ]]; then
     echo ""
@@ -241,9 +241,10 @@ else
 fi
 
 # Count installed skills
-if [[ -d ".agents/skills" ]]; then
-  SKILL_COUNT=$(find .agents/skills -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
-  echo "  skills: $SKILL_COUNT em .agents/skills/"
+SKILLS_CHECK="${HOME}/.codex/skills"
+if [[ -d "$SKILLS_CHECK" ]]; then
+  SKILL_COUNT=$(find "$SKILLS_CHECK" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
+  echo "  skills: $SKILL_COUNT em $SKILLS_CHECK/"
 else
   echo "  skills: nenhuma instalada"
 fi
