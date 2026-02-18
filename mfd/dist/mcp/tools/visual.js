@@ -48,16 +48,36 @@ async function findAvailablePort(start = 4200) {
     }
     throw new Error(`No available port in range ${start}-${start + 9}`);
 }
-function waitForServer(port, timeoutMs = 10000) {
+function waitForServer(port, child, getStderr, timeoutMs = 15000) {
     return new Promise((resolve, reject) => {
         const deadline = Date.now() + timeoutMs;
+        let earlyExit = false;
+        let exitCode = null;
+        // Detect early exit (server crashed before it could listen)
+        const exitHandler = (code) => {
+            earlyExit = true;
+            exitCode = code;
+        };
+        child.once("exit", exitHandler);
         const check = () => {
+            // If child already exited, fail immediately with stderr
+            if (earlyExit) {
+                child.removeListener("exit", exitHandler);
+                const stderr = getStderr().trim();
+                const detail = stderr ? `\n${stderr}` : ` (exit code ${exitCode})`;
+                reject(new Error(`Server process exited before becoming ready${detail}`));
+                return;
+            }
             if (Date.now() > deadline) {
-                reject(new Error("Server startup timeout"));
+                child.removeListener("exit", exitHandler);
+                const stderr = getStderr().trim();
+                const detail = stderr ? `\n${stderr}` : "";
+                reject(new Error(`Server startup timeout (${timeoutMs / 1000}s)${detail}`));
                 return;
             }
             const socket = createConnection({ port }, () => {
                 socket.destroy();
+                child.removeListener("exit", exitHandler);
                 resolve();
             });
             socket.on("error", () => {
@@ -200,8 +220,8 @@ export async function handleVisualStart(args) {
                 serverResolveIncludes = false;
             }
         });
-        // Wait for server to be ready
-        await waitForServer(port);
+        // Wait for server to be ready (with early crash detection)
+        await waitForServer(port, child, () => stderr);
         const url = `http://localhost:${port}`;
         // Open browser if requested
         if (args.open !== false) {

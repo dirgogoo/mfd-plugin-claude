@@ -1,54 +1,5 @@
 import { collectModel } from "../collect.js";
-/**
- * Normalize a path for comparison: remove trailing slashes.
- */
-function normalizePath(p) {
-    return p.replace(/\/+$/, "") || "/";
-}
-/**
- * Extract the base type name from a TypeExpr for comparison purposes.
- * Returns null for primitives (no mismatch check needed).
- */
-function baseTypeName(t) {
-    if (!t)
-        return null;
-    switch (t.type) {
-        case "ReferenceType":
-            return t.name;
-        case "ArrayType":
-        case "OptionalType":
-            return baseTypeName(t.inner);
-        case "UnionType":
-            return t.alternatives
-                .map((a) => baseTypeName(a))
-                .filter(Boolean)
-                .sort()
-                .join(" | ");
-        default:
-            return null; // PrimitiveType, InlineObjectType — skip comparison
-    }
-}
-/**
- * Extract path parameters from a URL path (e.g. /users/:id -> ["id"])
- */
-function extractPathParams(path) {
-    const params = [];
-    const regex = /:(\w+)/g;
-    let match;
-    while ((match = regex.exec(path)) !== null) {
-        params.push(match[1]);
-    }
-    return params;
-}
-/**
- * Get field names from an entity by looking it up in the model.
- */
-function getEntityFields(typeName, entities) {
-    const entity = entities.find((e) => e.name === typeName);
-    if (!entity)
-        return null;
-    return new Set(entity.fields.map((f) => f.name));
-}
+import { normalizePath, baseTypeName, extractPathParams, getEntityFields } from "./shared-helpers.js";
 /**
  * OPERATION_EVENT_UNRESOLVED: Checks that operation emits/on clauses
  * reference declared events.

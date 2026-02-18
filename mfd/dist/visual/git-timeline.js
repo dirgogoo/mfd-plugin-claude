@@ -33,22 +33,23 @@ const IMPL_RE = /@impl\(([^)]+)\)/;
 export async function loadGitTimeline(filePath, limit = 100) {
     const dir = dirname(filePath);
     let git;
+    let repoRoot;
     try {
         git = simpleGit(dir);
-        // Verify it's a git repo
-        await git.revparse(['--git-dir']);
+        // Find repo root so globs work from top-level
+        repoRoot = (await git.revparse(['--show-toplevel'])).trim();
+        git = simpleGit(repoRoot);
     }
     catch {
         // Not a git repo — graceful degradation
         return { commits: [], mfdFiles: [], generatedAt: Date.now() };
     }
-    // Get commits that touch .mfd files
+    // Get commits that touch .mfd files (from repo root, *.mfd matches all)
     let logResult;
     try {
         logResult = await git.log({
             maxCount: limit,
             file: '*.mfd',
-            // Include all .mfd files anywhere in the repo
         });
     }
     catch {
