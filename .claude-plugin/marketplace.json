@@ -10,7 +10,7 @@
     {
       "name": "Model-First-Development",
       "description": "Model-First Development — parser, validator, diagrams, contracts, visual dashboard, and LSP for .mfd files",
-      "version": "1.1.15",
+      "version": "1.1.16",
       "author": {
         "name": "MFD Project",
         "email": "mfd@example.com"
