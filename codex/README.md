@@ -9,7 +9,7 @@ This package contains the MFD tooling bundle and one Codex skill:
 - `mfd-mcp`
 - `mfd-lsp`
 
-## Instalacao rapida no Codex
+## Instalação rápida (plug and play)
 
 1) No root do repositorio, rode o build da integracao:
 
@@ -23,17 +23,24 @@ npx tsx scripts/build-plugin.ts
 bash plugin/codex/scripts/install-mfd-codex.sh
 ```
 
-3) Opcional, garanta que o bin dir esta no PATH:
+3) Registre o MCP no Codex:
+
+```bash
+codex mcp add mfd-codex -- node plugin/codex/dist/mcp/server.js
+```
+
+5) Opcional, garanta que o bin dir esta no PATH:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-4) Valide:
+6) Valide:
 
 ```bash
 mfd --help
 mfd validate --help
+mfd-mcp --help
 ```
 
 ## Opcoes do instalador

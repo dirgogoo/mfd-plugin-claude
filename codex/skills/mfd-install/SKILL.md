@@ -36,6 +36,12 @@ Instalar a cadeia de comandos `mfd`, `mfd-mcp` e `mfd-lsp` para uso local no amb
    ```bash
    mfd --help
    mfd validate --help
+   mfd-mcp --help
+   ```
+
+4. Opcional, registre o MCP no Codex:
+   ```bash
+   codex mcp add mfd-codex -- node plugin/codex/dist/mcp/server.js
    ```
 
 ## Saidas esperadas

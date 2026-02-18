@@ -18,9 +18,11 @@ export function loadModelSnapshot(filePath, resolveIncludes = false) {
     const t0 = performance.now();
     const absPath = resolve(filePath);
     const source = readFileSync(absPath, "utf-8");
+    // Auto-detect imports — same heuristic as CLI
+    const shouldResolve = resolveIncludes || /^\s*(import|include)\s+"/m.test(source);
     let doc;
     const t1 = performance.now();
-    if (resolveIncludes) {
+    if (shouldResolve) {
         const result = resolveFile(absPath);
         if (result.errors.length > 0) {
             throw new Error(`Resolution errors:\n${result.errors.map((e) => e.message).join("\n")}`);

@@ -76,7 +76,7 @@ mkdir -p "$LOCAL_BIN"
 
 LINKS=(
   "mfd:$PLUGIN_DIR/dist/core/cli/index.js"
-  "mfd-mcp:$PLUGIN_DIR/dist/mcp/server.js"
+  "mfd-mcp:$PLUGIN_DIR/bin/mfd-mcp"
   "mfd-lsp:$PLUGIN_DIR/dist/lsp/server.js"
 )
 

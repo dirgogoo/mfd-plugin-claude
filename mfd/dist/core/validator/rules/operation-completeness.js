@@ -6,6 +6,29 @@ function normalizePath(p) {
     return p.replace(/\/+$/, "") || "/";
 }
 /**
+ * Extract the base type name from a TypeExpr for comparison purposes.
+ * Returns null for primitives (no mismatch check needed).
+ */
+function baseTypeName(t) {
+    if (!t)
+        return null;
+    switch (t.type) {
+        case "ReferenceType":
+            return t.name;
+        case "ArrayType":
+        case "OptionalType":
+            return baseTypeName(t.inner);
+        case "UnionType":
+            return t.alternatives
+                .map((a) => baseTypeName(a))
+                .filter(Boolean)
+                .sort()
+                .join(" | ");
+        default:
+            return null; // PrimitiveType, InlineObjectType — skip comparison
+    }
+}
+/**
  * OPERATION_EVENT_UNRESOLVED: Checks that operation emits/on clauses
  * reference declared events.
  *
@@ -33,8 +56,8 @@ export function operationCompleteness(doc) {
     const eventNames = new Set(model.events.map((e) => e.name));
     const ruleNames = new Set(model.rules.map((r) => r.name));
     const enforcedRules = new Set();
-    // Resolve all API endpoints: "METHOD fullPath"
-    const apiEndpoints = new Set();
+    // Resolve all API endpoints: "METHOD fullPath" -> { inputType, returnType }
+    const apiEndpoints = new Map();
     for (const api of model.apis) {
         const prefixDeco = api.decorators.find((d) => d.name === "prefix");
         const prefixVal = prefixDeco?.params[0]
@@ -42,7 +65,10 @@ export function operationCompleteness(doc) {
             : "";
         for (const ep of api.endpoints) {
             const fullPath = normalizePath(prefixVal + ep.path);
-            apiEndpoints.add(`${ep.method} ${fullPath}`);
+            const key = `${ep.method} ${fullPath}`;
+            const inputType = ep.type === "ApiEndpointSimple" ? ep.inputType : ep.body;
+            const returnType = ep.type === "ApiEndpointSimple" ? ep.returnType : ep.response;
+            apiEndpoints.set(key, { inputType: inputType ?? null, returnType: returnType ?? null });
         }
     }
     for (const op of model.operations) {
@@ -71,7 +97,8 @@ export function operationCompleteness(doc) {
             }
             if (item.type === "OperationHandlesClause") {
                 const key = `${item.method} ${normalizePath(item.path)}`;
-                if (!apiEndpoints.has(key)) {
+                const epInfo = apiEndpoints.get(key);
+                if (!epInfo) {
                     diagnostics.push({
                         code: "OPERATION_HANDLES_UNRESOLVED",
                         severity: "warning",
@@ -79,6 +106,32 @@ export function operationCompleteness(doc) {
                         location: item.loc,
                         help: "Declare the endpoint in an 'api' block or check the method/path",
                     });
+                }
+                else {
+                    // Check input type mismatch
+                    const handlerInputName = baseTypeName(op.params[0]);
+                    const epInputName = baseTypeName(epInfo.inputType);
+                    if (handlerInputName && epInputName && handlerInputName !== epInputName) {
+                        diagnostics.push({
+                            code: "HANDLES_INPUT_MISMATCH",
+                            severity: "warning",
+                            message: `Operation '${op.name}' expects input '${handlerInputName}' but endpoint '${item.method} ${item.path}' expects '${epInputName}'`,
+                            location: item.loc,
+                            help: "Align the operation parameter type with the API endpoint input type, or update the endpoint",
+                        });
+                    }
+                    // Check return type mismatch
+                    const handlerReturnName = baseTypeName(op.returnType);
+                    const epReturnName = baseTypeName(epInfo.returnType);
+                    if (handlerReturnName && epReturnName && handlerReturnName !== epReturnName) {
+                        diagnostics.push({
+                            code: "HANDLES_RETURN_MISMATCH",
+                            severity: "warning",
+                            message: `Operation '${op.name}' returns '${handlerReturnName}' but endpoint '${item.method} ${item.path}' returns '${epReturnName}'`,
+                            location: item.loc,
+                            help: "Align the operation return type with the API endpoint return type, or update the endpoint",
+                        });
+                    }
                 }
             }
             if (item.type === "OperationCallsClause") {
@@ -115,7 +168,8 @@ export function operationCompleteness(doc) {
         for (const item of flow.body) {
             if (item.type === "OperationHandlesClause") {
                 const key = `${item.method} ${normalizePath(item.path)}`;
-                if (!apiEndpoints.has(key)) {
+                const epInfo = apiEndpoints.get(key);
+                if (!epInfo) {
                     diagnostics.push({
                         code: "FLOW_HANDLES_UNRESOLVED",
                         severity: "warning",
@@ -123,6 +177,32 @@ export function operationCompleteness(doc) {
                         location: item.loc,
                         help: "Declare the endpoint in an 'api' block or check the method/path",
                     });
+                }
+                else {
+                    // Check input type mismatch
+                    const handlerInputName = baseTypeName(flow.params[0]);
+                    const epInputName = baseTypeName(epInfo.inputType);
+                    if (handlerInputName && epInputName && handlerInputName !== epInputName) {
+                        diagnostics.push({
+                            code: "HANDLES_INPUT_MISMATCH",
+                            severity: "warning",
+                            message: `Flow '${flow.name}' expects input '${handlerInputName}' but endpoint '${item.method} ${item.path}' expects '${epInputName}'`,
+                            location: item.loc,
+                            help: "Align the flow parameter type with the API endpoint input type, or update the endpoint",
+                        });
+                    }
+                    // Check return type mismatch
+                    const handlerReturnName = baseTypeName(flow.returnType);
+                    const epReturnName = baseTypeName(epInfo.returnType);
+                    if (handlerReturnName && epReturnName && handlerReturnName !== epReturnName) {
+                        diagnostics.push({
+                            code: "HANDLES_RETURN_MISMATCH",
+                            severity: "warning",
+                            message: `Flow '${flow.name}' returns '${handlerReturnName}' but endpoint '${item.method} ${item.path}' returns '${epReturnName}'`,
+                            location: item.loc,
+                            help: "Align the flow return type with the API endpoint return type, or update the endpoint",
+                        });
+                    }
                 }
             }
             // Detect 'calls' misused in flow (parsed as FlowStep since grammar doesn't allow it)

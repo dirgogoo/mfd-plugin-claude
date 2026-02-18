@@ -1560,35 +1560,75 @@ a:hover, .scope-construct-link:hover {
 .scope-node-filter-row {
   display: flex;
   align-items: center;
-  gap: var(--scope-space-2);
-  padding: var(--scope-space-2) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  gap: var(--scope-space-3);
+  padding: var(--scope-space-2) var(--scope-space-2);
+  cursor: pointer;
+  transition: background 0.1s;
 }
 
-.scope-node-filter-row:last-child {
-  border-bottom: none;
+.scope-node-filter-row:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .scope-node-filter-row input[type="checkbox"] {
-  accent-color: var(--scope-accent);
-  width: 14px;
-  height: 14px;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
-.scope-node-filter-row label {
-  flex: 1;
+.scope-node-filter-row .scope-node-filter-check {
+  font-family: monospace;
   font-size: var(--scope-text-sm);
+  color: rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+  width: 1.8em;
+  text-align: center;
+  letter-spacing: -0.05em;
+}
+
+.scope-node-filter-row input:checked + span .scope-node-filter-check {
+  color: var(--scope-filter-type-color, #FFFFFF);
+}
+
+.scope-node-filter-row > span {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: var(--scope-space-2);
+}
+
+.scope-node-filter-row .scope-node-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--scope-filter-type-color, #FFFFFF);
+  opacity: 0.25;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.scope-node-filter-row input:checked + span .scope-node-filter-dot {
+  opacity: 1;
 }
 
 .scope-node-filter-row .scope-node-filter-type {
-  color: var(--scope-text-secondary);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: var(--scope-text-sm);
+  flex: 1;
+  transition: color 0.15s;
+}
+
+.scope-node-filter-row input:checked + span .scope-node-filter-type {
+  color: #FFFFFF;
 }
 
 .scope-node-filter-row .scope-node-filter-count {
   font-size: var(--scope-text-xs);
-  color: var(--scope-text-tertiary);
+  color: rgba(255, 255, 255, 0.25);
+  min-width: 2em;
+  text-align: right;
 }
 
 .scope-node-filter-empty {
