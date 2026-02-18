@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve, isAbsolute, relative } from "node:path";
 import { parse } from "../parser/index.js";
+import { MfdParseError } from "../parser/errors.js";
 /** Maximum include nesting depth to prevent runaway recursion */
 const MAX_INCLUDE_DEPTH = 20;
 /**
@@ -155,12 +156,23 @@ function parseWithErrors(source, filePath, errors) {
         return parse(source, { source: filePath });
     }
     catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push({
-            type: "PARSE_ERROR",
-            message: `Parse error in ${filePath}: ${msg}`,
-            file: filePath,
-        });
+        if (err instanceof MfdParseError) {
+            const loc = err.location.start;
+            errors.push({
+                type: "PARSE_ERROR",
+                message: `Parse error in ${filePath}:${loc.line}:${loc.column}: ${err.message}`,
+                file: filePath,
+                location: { line: loc.line, column: loc.column },
+            });
+        }
+        else {
+            const msg = err instanceof Error ? err.message : String(err);
+            errors.push({
+                type: "PARSE_ERROR",
+                message: `Parse error in ${filePath}: ${msg}`,
+                file: filePath,
+            });
+        }
         return null;
     }
 }

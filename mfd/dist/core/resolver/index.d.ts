@@ -12,6 +12,10 @@ export interface ResolveError {
     message: string;
     file: string;
     includedFrom?: string;
+    location?: {
+        line: number;
+        column: number;
+    };
 }
 export interface ResolveOptions {
     /** Base directory for resolving relative paths */
