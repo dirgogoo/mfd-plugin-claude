@@ -1,0 +1,1 @@
+{"version":3,"file":"stream-endpoint-validation.d.ts","sourceRoot":"","sources":["../../../../src/core/validator/rules/stream-endpoint-validation.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,qBAAqB,CAAC;AACvD,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,aAAa,CAAC;AAGxD;;;;GAIG;AACH,wBAAgB,wBAAwB,CAAC,GAAG,EAAE,WAAW,GAAG,oBAAoB,EAAE,CA+EjF"}

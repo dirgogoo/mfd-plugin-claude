@@ -1,0 +1,188 @@
+# ============================================
+# Authentication Template — Basic JWT Auth
+# ============================================
+# Use this template for systems that need user registration,
+# login/logout with JWT tokens, and role-based access.
+# Customize: add fields to User, roles to UserRole, or
+# additional auth flows (forgot_password, verify_email).
+
+system "{{PROJECT_NAME}}" @version(1.0) {
+  # JWT-based authentication with session management
+  # Premissa: passwords stored as bcrypt hashes
+  # Premissa: tokens are short-lived (15min access, 7d refresh)
+}
+
+component Auth @status(pending) {
+  dep -> Database @type(postgres)
+  dep -> EmailService @optional
+  secret JWT_SECRET @required @rotation(90d)
+  secret BCRYPT_ROUNDS @required
+}
+
+component Database @status(pending) {
+  # Primary data store
+}
+
+# --- Entities ---
+
+entity User {
+  id: uuid @unique
+  email: string @unique @format(email)
+  name: string @min(2) @max(100)
+  password_hash: string
+  role: UserRole
+  is_active: boolean
+  created_at: datetime
+  updated_at: datetime
+}
+
+entity Session {
+  id: uuid @unique
+  user_id: uuid
+  token: string @unique
+  refresh_token: string @unique
+  expires_at: datetime
+  created_at: datetime
+}
+
+entity RefreshToken {
+  id: uuid @unique
+  user_id: uuid
+  token: string @unique
+  expires_at: datetime
+  revoked: boolean
+  created_at: datetime
+}
+
+# --- Enums ---
+
+enum UserRole { admin, user, guest }
+
+enum AuthStatus { active, suspended, deleted }
+
+# --- State Machine ---
+
+state user_lifecycle on AuthStatus {
+  active -> suspended
+  suspended -> active
+  active -> deleted
+  suspended -> deleted
+}
+
+# --- Events ---
+
+event UserRegistered {
+  user_id: uuid
+  email: string
+  role: UserRole
+  created_at: datetime
+}
+
+event UserLoggedIn {
+  user_id: uuid
+  session_id: uuid
+  logged_at: datetime
+}
+
+event UserLoggedOut {
+  user_id: uuid
+  session_id: uuid
+  logged_out_at: datetime
+}
+
+event TokenRefreshed {
+  user_id: uuid
+  session_id: uuid
+  refreshed_at: datetime
+}
+
+# --- Flows ---
+
+flow register {
+  # Register a new user account
+  validate user_input
+    | invalid -> return validation_error
+  check_existing User.email
+    | exists -> return email_taken_error
+  hash password
+  save User @status(pending)
+  generate jwt_token
+  generate refresh_token
+  save Session
+  return session
+}
+
+flow login {
+  # Authenticate user with email and password
+  validate credentials
+    | invalid -> return validation_error
+  find User by email
+    | not_found -> return auth_error
+  check User.is_active
+    | inactive -> return account_suspended
+  verify password_hash
+    | mismatch -> return auth_error
+  generate jwt_token
+  generate refresh_token
+  save Session
+  return session
+}
+
+flow logout {
+  # Invalidate current session
+  authenticate user
+    | unauthorized -> return auth_error
+  revoke refresh_token
+  delete Session
+  return success
+}
+
+flow refresh_token {
+  # Exchange refresh token for new access token
+  validate refresh_token
+    | invalid -> return invalid_token
+    | expired -> return token_expired
+  check RefreshToken.revoked
+    | revoked -> return token_revoked
+  generate new_jwt_token
+  generate new_refresh_token
+  revoke old_refresh_token
+  save new_session
+  return session
+}
+
+# --- API ---
+
+api AuthAPI REST @prefix(/api/v1/auth) {
+  POST /register (User) -> Session @rate_limit(10/min)
+  POST /login -> Session @rate_limit(20/min)
+  POST /logout -> void @auth
+  POST /refresh -> Session @rate_limit(30/min)
+  GET /me -> User @auth @cache(30s)
+}
+
+# --- Rules ---
+
+rule password_complexity {
+  when: User.password_hash is set
+  then: password must have min 8 chars, 1 uppercase, 1 number
+  # Enforce strong passwords on registration and change
+}
+
+rule session_expiry {
+  when: Session.expires_at < current_time
+  then: reject request with token_expired error
+  # JWT access tokens expire after 15 minutes
+}
+
+rule rate_limiting {
+  when: login attempts > 5 in 15 minutes
+  then: block IP for 30 minutes
+  # Prevent brute-force attacks
+}
+
+rule refresh_token_rotation {
+  when: RefreshToken is used
+  then: revoke old token and issue new one
+  # Detect token theft via reuse detection
+}

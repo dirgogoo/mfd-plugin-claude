@@ -1,0 +1,150 @@
+# ============================================
+# CRUD API Template — Standard REST Resource
+# ============================================
+# Use this template for any resource that needs standard
+# Create, Read, Update, Delete operations via REST API.
+# Replace "Resource" with your entity name (e.g., Product, Task, Article).
+# Customize: add fields, relationships, business rules.
+
+system "{{PROJECT_NAME}}" @version(1.0) {
+  # Standard CRUD API with validation and soft-delete
+  # Premissa: resources use UUID primary keys
+  # Premissa: soft-delete (archived, not physically removed)
+}
+
+component ResourceManager @status(pending) {
+  dep -> Database @type(postgres)
+}
+
+component Database @status(pending) {
+  # Primary data store
+}
+
+# --- Entities ---
+
+entity Resource {
+  id: uuid @unique
+  name: string @min(1) @max(200)
+  description: string? @max(5000)
+  status: ResourceStatus
+  created_by: uuid
+  created_at: datetime
+  updated_at: datetime
+}
+
+# --- Enums ---
+
+enum ResourceStatus { active, inactive, archived }
+
+# --- State Machine ---
+
+state resource_lifecycle on ResourceStatus {
+  active -> inactive
+  inactive -> active
+  active -> archived
+  inactive -> archived
+}
+
+# --- Events ---
+
+event ResourceCreated {
+  resource_id: uuid
+  created_by: uuid
+  created_at: datetime
+}
+
+event ResourceUpdated {
+  resource_id: uuid
+  updated_by: uuid
+  updated_at: datetime
+}
+
+event ResourceArchived {
+  resource_id: uuid
+  archived_by: uuid
+  archived_at: datetime
+}
+
+# --- Flows ---
+
+flow create_resource {
+  # Create a new resource
+  authenticate user
+    | unauthorized -> return auth_error
+  validate resource_input
+    | invalid -> return validation_error
+  save Resource @status(pending)
+  return created_resource
+}
+
+flow update_resource {
+  # Update an existing resource
+  authenticate user
+    | unauthorized -> return auth_error
+  find Resource by id
+    | not_found -> return not_found_error
+  check Resource.status
+    | archived -> return cannot_modify_archived
+  validate resource_input
+    | invalid -> return validation_error
+  update Resource
+  return updated_resource
+}
+
+flow delete_resource {
+  # Soft-delete (archive) a resource
+  authenticate user
+    | unauthorized -> return auth_error
+  find Resource by id
+    | not_found -> return not_found_error
+  check Resource.status
+    | archived -> return already_archived
+  update Resource @status(archived)
+  return success
+}
+
+flow list_resources {
+  # List resources with pagination and filters
+  authenticate user
+    | unauthorized -> return auth_error
+  apply_filters status, search_query
+  apply_pagination page, page_size
+  query Resources
+  return paginated_results
+}
+
+# --- API ---
+
+api ResourceAPI REST @prefix(/api/v1/resources) {
+  GET /resources -> Resource[] @cache(30s)
+  GET /resources/{id} -> Resource @cache(60s)
+  POST /resources (Resource) -> Resource @auth @rate_limit(50/min)
+  PUT /resources/{id} (Resource) -> Resource @auth
+  DELETE /resources/{id} -> void @auth
+}
+
+# --- Rules ---
+
+rule validation {
+  when: Resource is created or updated
+  then: name must not be empty, status must be valid enum value
+  # Basic input validation
+}
+
+rule authorization {
+  when: Resource is modified
+  then: user must be creator or admin
+  # Only resource owner or admin can modify
+}
+
+rule soft_delete {
+  when: Resource is deleted
+  then: set status to archived, do not remove from database
+  # Preserve data integrity, allow recovery
+}
+
+rule unique_name {
+  when: Resource is created or updated
+  then: name must be unique within active resources
+  # Prevent duplicate resource names
+}
