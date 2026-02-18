@@ -409,25 +409,26 @@ function renderFlowDetail(snapshot, componentName, flowName, entityComponentMap,
     const steps = flow.body.map((item, i) => {
         if (item.type === "FlowStep") {
             const step = item;
+            const branches = step.branches?.map((branch, branchIndex) => `
+        <div class="scope-flow-step scope-flow-branch">
+          <span class="scope-flow-step-num">${i + 1}.${branchIndex + 1}</span>
+          <span class="scope-mono">| ${escapeHtml(branch.condition)} -> ${linkifyFlowAction(escapeHtml(branch.action), entityComponentMap, snapshot)}</span>
+        </div>
+      `).join("");
             return `<div class="scope-flow-step">
         <span class="scope-flow-step-num">${i + 1}.</span>
         <span class="scope-mono">-> ${linkifyFlowAction(escapeHtml(step.action), entityComponentMap, snapshot)}</span>
-      </div>`;
+      </div>
+      ${branches}`;
         }
-        if (item.type === "FlowBranch") {
-            const branch = item;
-            return `<div class="scope-flow-step scope-flow-branch">
+        if (item.type === "FlowOverrideStep") {
+            const step = item;
+            return `<div class="scope-flow-step scope-flow-override">
         <span class="scope-flow-step-num">${i + 1}.</span>
-        <span class="scope-mono">| ${escapeHtml(branch.condition)} -> ${linkifyFlowAction(escapeHtml(branch.action), entityComponentMap, snapshot)}</span>
+        <span class="scope-mono">override ${escapeHtml(step.target)} -> ${linkifyFlowAction(escapeHtml(step.action), entityComponentMap, snapshot)}</span>
       </div>`;
         }
-        if (item.type === "FlowReturn") {
-            return `<div class="scope-flow-step scope-flow-return">
-        <span class="scope-flow-step-num">${i + 1}.</span>
-        <span class="scope-mono">return ${escapeHtml(item.expression || "")}</span>
-      </div>`;
-        }
-        if (item.type === "FlowComment") {
+        if (item.type === "SemanticComment") {
             return `<div class="scope-flow-step scope-flow-comment">
         <span class="scope-flow-step-num"></span>
         <span style="color: var(--scope-text-tertiary)"># ${escapeHtml(item.text || "")}</span>

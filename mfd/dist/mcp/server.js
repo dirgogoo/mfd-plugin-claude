@@ -8,7 +8,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleQuery, handlePrompt, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, } from "./tools/index.js";
+import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleQuery, handlePrompt, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
 import { handleListResources, handleReadResource, } from "./resources/index.js";
 const server = new Server({
     name: "mfd-tools",
@@ -249,10 +249,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                     view: {
                         type: "string",
                         enum: [
-                            "system",
-                            "overview",
-                            "component",
-                            "dashboard",
+                            ...VISUAL_NAV_VIEWS,
                         ],
                         description: "The view to navigate to",
                     },

@@ -2,11 +2,12 @@
  * MCP tools for MFD Scope — visual server management
  * mfd_visual_start, mfd_visual_stop, mfd_visual_navigate
  */
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createConnection } from "node:net";
 import { rmSync, readdirSync, existsSync } from "node:fs";
+export const VISUAL_NAV_VIEWS = ["system", "overview", "component", "dashboard"];
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /**
  * Locate the visual server entry point.
@@ -24,8 +25,6 @@ function findVisualServer() {
         return { path: tsPath, compiled: false };
     return { path: jsPath, compiled: true };
 }
-const visualServerInfo = findVisualServer();
-const VISUAL_SERVER_PATH = visualServerInfo.path;
 // Singleton state
 let serverProcess = null;
 let serverPort = null;
@@ -67,6 +66,42 @@ function waitForServer(port, timeoutMs = 10000) {
         };
         check();
     });
+}
+/**
+ * Kill any process listening on the given port.
+ * Uses /api/shutdown first (graceful), then falls back to lsof+kill.
+ */
+async function killProcessOnPort(port) {
+    // Try graceful HTTP shutdown first (in case it's an MFD Scope server)
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+        await fetch(`http://localhost:${port}/api/shutdown`, {
+            method: "POST",
+            signal: controller.signal,
+        }).catch(() => { });
+        clearTimeout(timeout);
+        // Give it a moment to shut down
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    catch { /* ignore */ }
+    // If still occupied, force-kill via lsof
+    if (!(await isPortAvailable(port))) {
+        try {
+            const pids = execSync(`lsof -ti:${port} 2>/dev/null`, { encoding: "utf-8" }).trim();
+            if (pids) {
+                for (const pid of pids.split("\n")) {
+                    try {
+                        process.kill(Number(pid), "SIGKILL");
+                    }
+                    catch { /* already gone */ }
+                }
+                // Wait for port to free
+                await new Promise((r) => setTimeout(r, 500));
+            }
+        }
+        catch { /* lsof not available or no PIDs */ }
+    }
 }
 /**
  * Stop the visual server cleanly via its /api/shutdown endpoint.
@@ -113,19 +148,7 @@ async function shutdownServer(port, proc) {
 }
 export async function handleVisualStart(args) {
     const absFile = resolve(args.file);
-    // If already running with same file, return existing URL
-    if (serverProcess && serverFile === absFile && serverPort) {
-        const url = `http://localhost:${serverPort}`;
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: `MFD Scope already running at ${url}\nFile: ${absFile}`,
-                },
-            ],
-        };
-    }
-    // If running with different file, stop first
+    // Always stop any existing tracked server first
     if (serverProcess && serverPort) {
         await shutdownServer(serverPort, serverProcess);
         serverProcess = null;
@@ -135,7 +158,14 @@ export async function handleVisualStart(args) {
     }
     try {
         const port = args.port ?? (await findAvailablePort());
-        const serverArgs = [VISUAL_SERVER_PATH, "--file", absFile, "--port", String(port)];
+        // Kill any orphaned process on the target port (from previous sessions)
+        if (!(await isPortAvailable(port))) {
+            await killProcessOnPort(port);
+        }
+        // Re-discover server path on every start to pick up plugin updates
+        const visualServerInfo = findVisualServer();
+        const serverPath = visualServerInfo.path;
+        const serverArgs = [serverPath, "--file", absFile, "--port", String(port)];
         if (args.resolve_includes)
             serverArgs.push("--resolve");
         let child;
