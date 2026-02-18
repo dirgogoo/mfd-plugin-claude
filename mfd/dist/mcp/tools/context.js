@@ -1,6 +1,6 @@
 import { collectModel } from "../../core/validator/collect.js";
 import { buildConstructComponentMap, computeRelationships, makeKey, } from "../../core/relationships/index.js";
-import { generateContractFiltered, } from "../../core/contract/index.js";
+import { generateContractFiltered, compactContract, } from "../../core/contract/index.js";
 import { loadDocument } from "./common.js";
 /**
  * Given a construct name, return it + all related constructs via BFS on the relationship graph.
@@ -74,7 +74,6 @@ export function handleContext(args) {
     const filteredModel = filterModelByNames(model, constructNames);
     const contract = generateContractFiltered(model, filteredModel);
     if (args.compact) {
-        const { compactContract } = require("../../../mfd-core/src/contract/index.js");
         compactContract(contract);
     }
     const result = {
