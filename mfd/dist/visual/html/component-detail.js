@@ -926,6 +926,7 @@ function buildFlowGraphData(flows, componentName, entityComponentMap, enumNames,
     const flowNodes = [];
     const ioNodeMap = new Map();
     const eventNodeMap = new Map();
+    const endpointNodeMap = new Map();
     const edges = [];
     const allEventNames = new Set(allEvents.map((e) => e.name));
     // --- Phase 1: Compute flowOpsMap before building flow nodes (needed for derived signatures) ---
@@ -1167,7 +1168,6 @@ function buildFlowGraphData(flows, componentName, entityComponentMap, enumNames,
     // Build operation nodes + endpoint nodes
     const usedRuleNames = new Set();
     const operationNodes = [];
-    const endpointNodeMap = new Map();
     for (const opName of usedOpNames) {
         const op = operations.find((o) => o.name === opName);
         const params = op.params.map((p) => formatType(p)).join(", ");
