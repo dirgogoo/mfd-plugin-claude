@@ -15,6 +15,7 @@ const RETICLE_LOGO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 const NAV_ICONS = {
     system: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg>`,
     dashboard: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="5" width="4" height="13" rx="1"/><rect x="14" y="2" width="4" height="16" rx="1"/></svg>`,
+    timeline: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="10" x2="18" y2="10"/><circle cx="5" cy="10" r="2.5" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.5" fill="currentColor" stroke="none"/></svg>`,
 };
 const THEME_ICONS = {
     dark: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="10" y1="16" x2="10" y2="18"/><line x1="2" y1="10" x2="4" y2="10"/><line x1="16" y1="10" x2="18" y2="10"/></svg>`,
@@ -76,6 +77,7 @@ function renderFrameNav(options) {
       <a href="/" class="scope-frame-tab${activePage === "system" ? " active" : ""}" data-nav="system"><span class="scope-frame-tab-key">1</span> system</a>
       <a href="/components" class="scope-frame-tab${activePage === "components" ? " active" : ""}" data-nav="components"><span class="scope-frame-tab-key">2</span> components</a>
       <a href="/dashboard" class="scope-frame-tab${activePage === "dashboard" ? " active" : ""}" data-nav="dashboard"><span class="scope-frame-tab-key">3</span> dashboard</a>
+      <a href="/timeline" class="scope-frame-tab${activePage === "timeline" ? " active" : ""}" data-nav="timeline"><span class="scope-frame-tab-key">4</span> timeline</a>
       <span class="scope-frame-tab" data-nav="search" id="frame-search-btn"><span class="scope-frame-tab-key">/</span> search</span>
       <span class="scope-frame-tab" data-nav="shortcuts" id="frame-help-btn"><span class="scope-frame-tab-key">?</span> help</span>
     </nav>`;
@@ -117,6 +119,7 @@ function renderShortcutsPanel(options) {
       <div class="scope-shortcut-row"><span>System Info</span><span class="scope-shortcut-key">1</span></div>
       <div class="scope-shortcut-row"><span>Components</span><span class="scope-shortcut-key">2</span></div>
       <div class="scope-shortcut-row"><span>Progress Dashboard</span><span class="scope-shortcut-key">3</span></div>
+      <div class="scope-shortcut-row"><span>Timeline</span><span class="scope-shortcut-key">4</span></div>
       <div class="scope-shortcut-row"><span>Cycle Tabs</span><span class="scope-shortcut-key">Tab</span></div>
       <div class="scope-shortcut-row"><span>Go Up / Close</span><span class="scope-shortcut-key">Esc</span></div>
       ${common}
@@ -164,6 +167,11 @@ export function renderLayout(content, options) {
     const dashboardActive = activePage === "dashboard" ? " active" : "";
     railItems.push(`<a href="/dashboard" class="scope-rail-item${dashboardActive}" data-tooltip="Progress" data-nav="dashboard">
     <span class="scope-rail-icon">${NAV_ICONS.dashboard}</span>
+  </a>`);
+    // Timeline
+    const timelineActive = activePage === "timeline" ? " active" : "";
+    railItems.push(`<a href="/timeline" class="scope-rail-item${timelineActive}" data-tooltip="Timeline" data-nav="timeline">
+    <span class="scope-rail-icon">${NAV_ICONS.timeline}</span>
   </a>`);
     const railHtml = railItems.join("\n");
     const versionLabel = systemVersion ? ` v${systemVersion}` : "";

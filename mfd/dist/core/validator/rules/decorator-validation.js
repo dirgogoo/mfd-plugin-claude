@@ -31,6 +31,7 @@ const KNOWN_DECORATORS = {
     // Dep
     type: { params: "identifier" },
     // Secret
+    required: { params: "none" },
     rotation: { params: "duration" },
     provider: { params: "identifier" },
     // Relationships
@@ -45,6 +46,15 @@ const VALID_STATUS = new Set(["modeling", "implementing", "production", "depreca
 const DEPRECATED_IMPL_VALUES = new Set(["done", "backend", "frontend", "partial"]);
 /** All known decorator names for "did you mean?" suggestions */
 const ALL_DECORATOR_NAMES = Object.keys(KNOWN_DECORATORS);
+/** Human-readable descriptions for decorator parameter types */
+const PARAM_DESCRIPTIONS = {
+    number: "a number, e.g. @min(1)",
+    identifier: "an identifier, e.g. @requires(admin)",
+    "identifier|string": "a format, e.g. @format(email)",
+    string: "a string value, e.g. @prefix(/api)",
+    rate: "a rate, e.g. @rate_limit(100/min)",
+    duration: "a duration, e.g. @cache(5m)",
+};
 /**
  * Simple Levenshtein distance for "did you mean?" suggestions.
  */
@@ -118,7 +128,7 @@ export function decoratorValidation(doc) {
             diagnostics.push({
                 code: "DECORATOR_INVALID",
                 severity: "warning",
-                message: `Decorator '@${deco.name}' expects a parameter`,
+                message: `Decorator '@${deco.name}' expects ${PARAM_DESCRIPTIONS[spec.params] || "a parameter"}`,
                 location: deco.loc,
             });
         }

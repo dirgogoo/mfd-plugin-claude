@@ -10,6 +10,9 @@ import { collectModel } from "../collect.js";
  *
  * ORPHAN_OPERATION: operation without `handles` clause and not referenced by any flow step
  *   (only when model has APIs; skip operations that have `on` or `calls` clauses)
+ *
+ * ORPHAN_SIGNAL: signal that is never emitted nor listened to by any action
+ *   (skip @abstract signals)
  */
 export function orphanDetection(doc) {
     const model = collectModel(doc);
@@ -154,6 +157,36 @@ export function orphanDetection(doc) {
                     message: `Operation '${op.name}' has no 'handles' clause and is not referenced by any flow or rule`,
                     location: op.loc,
                     help: `Add 'handles METHOD /path' or reference it from a flow step`,
+                });
+            }
+        }
+    }
+    // ---- ORPHAN_SIGNAL ----
+    if (model.signals.length > 0) {
+        const usedSignals = new Set();
+        for (const action of model.actions) {
+            for (const item of action.body) {
+                if (item.type === "ActionOnSignalClause")
+                    usedSignals.add(item.signal);
+                if (item.type === "ActionEmitsSignalClause")
+                    usedSignals.add(item.signal);
+            }
+        }
+        // Also count signals used as extends targets by other signals
+        for (const signal of model.signals) {
+            if (signal.extends)
+                usedSignals.add(signal.extends);
+        }
+        for (const signal of model.signals) {
+            if (signal.decorators.some((d) => d.name === "abstract"))
+                continue;
+            if (!usedSignals.has(signal.name)) {
+                diagnostics.push({
+                    code: "ORPHAN_SIGNAL",
+                    severity: "warning",
+                    message: `Signal '${signal.name}' is never emitted nor listened to by any action`,
+                    location: signal.loc,
+                    help: `Add 'on ${signal.name}' to an action to listen, or 'emits ${signal.name}' to emit it, or remove if unused`,
                 });
             }
         }

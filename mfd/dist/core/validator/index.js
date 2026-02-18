@@ -23,6 +23,8 @@ import { qualityGuards } from "./rules/quality-guards.js";
 import { stateRigor } from "./rules/state-rigor.js";
 import { errorPathCoverage } from "./rules/error-path-coverage.js";
 import { godCoreDetection } from "./rules/god-core-detection.js";
+import { uiQuality } from "./rules/ui-quality.js";
+import { abstractionHygiene } from "./rules/abstraction-hygiene.js";
 const allRules = [
     referentialIntegrity,
     circularDeps,
@@ -49,6 +51,8 @@ const allRules = [
     stateRigor,
     errorPathCoverage,
     godCoreDetection,
+    uiQuality,
+    abstractionHygiene,
 ];
 /**
  * Validate an MFD document against all semantic rules.
