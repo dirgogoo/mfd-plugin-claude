@@ -166,6 +166,138 @@ Quatro padroes mutuamente exclusivos:
 - `entity implements Timestamped` -> entidade DEVE ter `created_at` e `updated_at`
 - `component implements PaymentProvider` -> DEVE ter `operation charge(...)`
 
+## Fronteira de DTOs
+
+Entity = dominio/persistencia. Parametro de flow/operation = DTO de entrada. Retorno = DTO de saida.
+
+### Regras
+
+- Na camada da API, nunca retornar entity crua se ela tem campos internos (ex: `password_hash`, `internal_score`)
+- Se o modelo define `flow criar(Input) -> Output`, `Input` e `Output` sao os contratos — implementar tipos correspondentes
+- Para listas: se API retorna `-> Item[]`, implementar com paginacao real mas tipo de item conforme modelo
+- Se Input/Output e uma entity do modelo, OK — a simplificacao pragmatica e valida quando a entity nao tem campos internos
+- Se precisa filtrar campos, criar tipo/interface dedicado na implementacao (nao precisa estar no modelo como entity separada)
+
+### Exemplo
+
+```typescript
+// Modelo: flow criar_user(CreateUserInput) -> UserProfile | ValidationError
+
+// DTO de entrada — corresponde a CreateUserInput do modelo
+interface CreateUserInput {
+  email: string;
+  name: string;
+  password: string;
+}
+
+// DTO de saida — corresponde a UserProfile do modelo (sem password_hash)
+interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+}
+
+// Entity no banco — campos internos nao expostos
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  password_hash: string;  // nunca retornado na API
+}
+```
+
+## Modelagem de Erros na Implementacao
+
+Tipo union no retorno (`-> Result | Error`) deve ser implementado com tratamento explicito de cada caminho de erro.
+
+### Estrategias por linguagem
+
+- **TypeScript**: discriminated unions, Result types (`{ ok: true, data } | { ok: false, error }`)
+- **Go**: multiple returns (`result, err`)
+- **Rust**: `Result<T, E>` nativo
+- **Python**: exceptions tipadas ou Result pattern
+
+### Regras
+
+- Cada branch `| erro ->` no flow corresponde a um caminho de erro no codigo
+- Rules (`when/then`) -> implementar como validacao que retorna o erro especifico, nao excecao generica
+- Mapear erros do modelo para HTTP status codes na camada de API:
+
+| Erro no Modelo | HTTP Status | Exemplo |
+|----------------|-------------|---------|
+| ErroValidacao | 400 Bad Request | Campo invalido, formato errado |
+| ErroNaoEncontrado | 404 Not Found | Recurso nao existe |
+| ErroConflito | 409 Conflict | Duplicidade, estado inconsistente |
+| ErroNaoAutorizado | 401 Unauthorized | Token ausente/invalido |
+| ErroProibido | 403 Forbidden | Sem permissao para acao |
+
+### Exemplo
+
+```typescript
+// Modelo: flow criar_pedido(Input) -> Pedido | ErroValidacao | ErroConflito
+// Branch: | invalido -> return ErroValidacao
+// Branch: | duplicado -> return ErroConflito
+
+type CriarPedidoResult =
+  | { ok: true; data: Pedido }
+  | { ok: false; error: ErroValidacao }
+  | { ok: false; error: ErroConflito };
+
+async function criarPedido(input: CriarPedidoInput): Promise<CriarPedidoResult> {
+  const validacao = validar(input);
+  if (!validacao.ok) return { ok: false, error: validacao.error }; // branch | invalido
+
+  const duplicidade = await verificarDuplicidade(input);
+  if (duplicidade) return { ok: false, error: new ErroConflito() }; // branch | duplicado
+
+  const pedido = await persistir(input);
+  await emit(new PedidoCriado(pedido));  // @async side-effect
+  return { ok: true, data: pedido };
+}
+
+// Na camada da API: mapear para HTTP
+app.post("/v1/pedidos", async (req, res) => {
+  const result = await criarPedido(req.body);
+  if (!result.ok) {
+    if (result.error instanceof ErroValidacao) return res.status(400).json(result.error);
+    if (result.error instanceof ErroConflito) return res.status(409).json(result.error);
+  }
+  return res.status(201).json(result.data);
+});
+```
+
+## Piramide de Testes Derivada do Modelo
+
+O modelo MFD define naturalmente a piramide de testes. Cada tipo de construto mapeia para um nivel de teste.
+
+### Niveis
+
+| Nivel | Construto MFD | Tipo de Teste | Prioridade |
+|-------|--------------|---------------|------------|
+| Base | `operation` | Unit tests | 1 (primeiro) |
+| Integracao | `flow` | Integration tests | 2 |
+| Contrato | `api` endpoints | Contract/API tests | 3 |
+| E2E | `journey` | End-to-end tests | 4 (ultimo) |
+
+### Detalhamento
+
+- **Unit tests (operations)**: cada `operation` testada isoladamente — input -> output, sem dependencias externas. Mock de tudo. Rapidos, muitos.
+- **Integration tests (flows)**: cada `flow` testado com sequence de steps real — dependencias de infra mockadas mas logica de orquestracao real. Valida branches de erro.
+- **Contract tests (api)**: cada endpoint de `api` testado via HTTP — request -> response conforme modelo. Valida status codes, formatos, `@auth`, `@rate_limit`.
+- **E2E tests (journeys)**: cada `journey` como cenario de teste — navegacao completa do usuario. Validam fluxo de ponta a ponta.
+
+### Regras e state machines
+
+- `rule` -> implementar como assertion/validacao dentro dos unit tests das operations que usam a rule
+- `state` machine -> testar cada transicao valida E testar que transicoes invalidas sao rejeitadas
+
+### Cobertura derivada do modelo
+
+- Contar operations sem teste = gap em unit tests
+- Contar flows sem teste = gap em integration tests
+- Contar endpoints sem teste = gap em contract tests
+- Contar journeys sem teste = gap em E2E
+
 ## Regras de Fidelidade ao Contrato
 
 1. **Nao adicionar** campos, endpoints, ou fluxos que nao estao no modelo

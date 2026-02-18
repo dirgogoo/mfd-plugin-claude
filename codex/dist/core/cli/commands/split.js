@@ -1,6 +1,7 @@
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { parse } from "../../parser/index.js";
+import { MfdParseError } from "../../parser/errors.js";
 import { resolveFile } from "../../resolver/index.js";
 import { validate } from "../../validator/index.js";
 function toKebabCase(name) {
@@ -54,8 +55,13 @@ export function splitCommand(file, options) {
         doc = parse(source, { source: filePath });
     }
     catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`error: Parse error: ${msg}`);
+        if (err instanceof MfdParseError) {
+            console.error(err.format(source));
+        }
+        else {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`error: Parse error: ${msg}`);
+        }
         process.exit(1);
     }
     // Find the SystemDecl (if any)

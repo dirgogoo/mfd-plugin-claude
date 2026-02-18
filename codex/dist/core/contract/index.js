@@ -576,6 +576,76 @@ export function generateContract(model) {
         secrets: model.secrets.map(contractSecret),
     };
 }
+/**
+ * Generate a contract from a filtered model, using the full model for inheritance resolution.
+ * This produces contracts only for items in filteredModel, but resolves extends/implements
+ * from the fullModel so inheritance chains are correct.
+ */
+export function generateContractFiltered(fullModel, filteredModel) {
+    // Build maps from FULL model for correct inheritance resolution
+    const elementMap = new Map(fullModel.elements.map((e) => [e.name, e]));
+    const entityMap = new Map(fullModel.entities.map((e) => [e.name, e]));
+    const flowMap = new Map(fullModel.flows.map((f) => [f.name, f]));
+    const eventMap = new Map(fullModel.events.map((e) => [e.name, e]));
+    // Build element usedBy from full model
+    const elementUsedBy = new Map();
+    for (const screen of fullModel.screens) {
+        for (const item of screen.body) {
+            if (item.type === "UsesDecl") {
+                const list = elementUsedBy.get(item.element) ?? [];
+                list.push(screen.name);
+                elementUsedBy.set(item.element, list);
+            }
+        }
+    }
+    // Generate contracts only for filtered items
+    return {
+        version: "1.0",
+        elements: filteredModel.elements.map((e) => contractElement(e, elementMap, elementUsedBy.get(e.name) ?? [])),
+        entities: filteredModel.entities.map((e) => contractEntity(e, entityMap)),
+        enums: filteredModel.enums.map(contractEnum),
+        flows: filteredModel.flows.map((f) => contractFlow(f, flowMap)),
+        states: filteredModel.states.map(contractState),
+        events: filteredModel.events.map((e) => contractEvent(e, eventMap)),
+        signals: filteredModel.signals.map(contractSignal),
+        apis: filteredModel.apis.map(contractApi),
+        rules: filteredModel.rules.map(contractRule),
+        screens: filteredModel.screens.map(contractScreen),
+        journeys: filteredModel.journeys.map(contractJourney),
+        operations: filteredModel.operations.map(contractOperation),
+        actions: filteredModel.actions.map(contractAction),
+        deps: filteredModel.deps.map(contractDep),
+        secrets: filteredModel.secrets.map(contractSecret),
+    };
+}
+/**
+ * Compact mode: strip redundant inherited data from a contract.
+ * For constructs with extends/implements, the `resolvedFields`/`resolvedSteps`/`resolvedProps`
+ * contain the full picture — so the local `fields`/`steps`/`props` can be emptied to save tokens.
+ * Only applies to constructs that actually have a parent (extends or implements).
+ */
+export function compactContract(contract) {
+    for (const entity of contract.entities) {
+        if (entity.extends || entity.implements.length > 0) {
+            entity.fields = [];
+        }
+    }
+    for (const flow of contract.flows) {
+        if (flow.extends || flow.implements.length > 0) {
+            flow.steps = [];
+        }
+    }
+    for (const element of contract.elements) {
+        if (element.extends || element.implements.length > 0) {
+            element.props = [];
+        }
+    }
+    for (const event of contract.events) {
+        if (event.extends) {
+            event.fields = [];
+        }
+    }
+}
 export function serializeContract(contract) {
     return JSON.stringify(contract, null, 2);
 }

@@ -13,11 +13,16 @@ export interface ValidationResult {
     errors: ValidationDiagnostic[];
     warnings: ValidationDiagnostic[];
 }
+export interface ValidateOptions {
+    /** When true, all warnings are promoted to errors */
+    strict?: boolean;
+}
 export type ValidationRule = (doc: MfdDocument) => ValidationDiagnostic[];
 /**
  * Validate an MFD document against all semantic rules.
+ * When `strict` is true, all warnings are promoted to errors.
  */
-export declare function validate(doc: MfdDocument): ValidationResult;
+export declare function validate(doc: MfdDocument, options?: ValidateOptions): ValidationResult;
 /**
  * Format a diagnostic in rustc-style output with colors and context.
  */

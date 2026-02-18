@@ -1,18 +1,18 @@
-#!/usr/bin/env node
+#!/usr/bin/env npx tsx
 /**
  * MFD-DSL MCP Server
  *
- * Exposes MFD tools (parse, validate, stats, render, contract, prompt) via the
- * Model Context Protocol, allowing Claude to use them directly during conversations.
+ * Exposes MFD tools (parse, validate, stats, render, contract, prompt, context, diff, trace)
+ * via the Model Context Protocol, allowing Claude to use them directly during conversations.
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleQuery, handlePrompt, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, } from "./tools/index.js";
+import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
 import { handleListResources, handleReadResource, } from "./resources/index.js";
 const server = new Server({
     name: "mfd-tools",
-    version: "0.1.0",
+    version: "0.2.0",
 }, {
     capabilities: {
         tools: {},
@@ -54,6 +54,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                     resolve_includes: {
                         type: "boolean",
                         description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                    strict: {
+                        type: "boolean",
+                        description: "Strict mode: promote all warnings to errors (default: false)",
                         default: false,
                     },
                 },
@@ -120,6 +125,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                         type: "string",
                         description: "Path to the .mfd file to generate a contract from",
                     },
+                    compact: {
+                        type: "boolean",
+                        description: "Compact mode: omit redundant inherited fields/steps/props when resolvedFields/resolvedSteps/resolvedProps are present (default: false)",
+                        default: false,
+                    },
                     resolve_includes: {
                         type: "boolean",
                         description: "Whether to resolve include directives (default: false)",
@@ -167,6 +177,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                         type: "string",
                         description: "Filter by construct name (substring match, case-insensitive)",
                     },
+                    compact: {
+                        type: "boolean",
+                        description: "Compact mode: omit redundant inherited fields/steps/props (default: false)",
+                        default: false,
+                    },
                     resolve_includes: {
                         type: "boolean",
                         description: "Whether to resolve include directives (default: false)",
@@ -177,8 +192,125 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             },
         },
         {
+            name: "mfd_context",
+            description: "Get a construct and all its related constructs via the relationship graph. Uses BFS with configurable depth to find entities, flows, events, states, etc. that are connected to the target. Returns a focused contract with only relevant constructs — ideal for understanding a specific part of the model.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file: {
+                        type: "string",
+                        description: "Path to the .mfd file",
+                    },
+                    name: {
+                        type: "string",
+                        description: "Name of the construct to get context for (e.g., 'User', 'create_order')",
+                    },
+                    type: {
+                        type: "string",
+                        enum: [
+                            "entity",
+                            "enum",
+                            "flow",
+                            "state",
+                            "event",
+                            "signal",
+                            "api",
+                            "rule",
+                            "screen",
+                            "journey",
+                            "operation",
+                            "action",
+                        ],
+                        description: "Optional: filter by construct type for disambiguation",
+                    },
+                    depth: {
+                        type: "number",
+                        description: "BFS depth for relationship traversal (1-3, default: 1)",
+                        default: 1,
+                    },
+                    compact: {
+                        type: "boolean",
+                        description: "Compact mode: omit redundant inherited data (default: false)",
+                        default: false,
+                    },
+                    resolve_includes: {
+                        type: "boolean",
+                        description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                },
+                required: ["file", "name"],
+            },
+        },
+        {
+            name: "mfd_diff",
+            description: "Semantic diff between two MFD model files. Shows added, removed, and modified constructs with details about what changed (fields, transitions, steps, etc.).",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file1: {
+                        type: "string",
+                        description: "Path to the first .mfd file (before)",
+                    },
+                    file2: {
+                        type: "string",
+                        description: "Path to the second .mfd file (after)",
+                    },
+                    resolve_includes: {
+                        type: "boolean",
+                        description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                },
+                required: ["file1", "file2"],
+            },
+        },
+        {
+            name: "mfd_trace",
+            description: "Model-to-code traceability. Read mode: extracts @impl and @tests decorators from each construct, verifies if referenced files exist on disk. Write mode (mark): adds or updates @impl(paths...) on a construct in the .mfd file.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file: {
+                        type: "string",
+                        description: "Path to the .mfd file",
+                    },
+                    name: {
+                        type: "string",
+                        description: "Filter by construct name (substring match)",
+                    },
+                    component: {
+                        type: "string",
+                        description: "Filter by component name",
+                    },
+                    resolve_includes: {
+                        type: "boolean",
+                        description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                    mark: {
+                        type: "object",
+                        description: "Write mode: add/update @impl on a construct",
+                        properties: {
+                            construct: {
+                                type: "string",
+                                description: "Name of the construct to mark (e.g., 'User')",
+                            },
+                            paths: {
+                                type: "array",
+                                items: { type: "string" },
+                                description: "File paths for @impl (e.g., ['src/models/user.ts'])",
+                            },
+                        },
+                        required: ["construct", "paths"],
+                    },
+                },
+                required: ["file"],
+            },
+        },
+        {
             name: "mfd_prompt",
-            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao.",
+            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao, arquitetura, boas-praticas, brownfield.",
             inputSchema: {
                 type: "object",
                 properties: {
@@ -249,10 +381,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                     view: {
                         type: "string",
                         enum: [
-                            "system",
-                            "overview",
-                            "component",
-                            "dashboard",
+                            ...VISUAL_NAV_VIEWS,
                         ],
                         description: "The view to navigate to",
                     },
@@ -274,7 +403,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     return handleReadResource(request.params.uri);
 });
 // --- Tool Dispatch ---
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+server.setRequestHandler(CallToolRequestSchema, async (request, _extra) => {
     const { name, arguments: args } = request.params;
     try {
         switch (name) {
@@ -290,6 +420,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 return handleContract(args);
             case "mfd_query":
                 return handleQuery(args);
+            case "mfd_context":
+                return handleContext(args);
+            case "mfd_diff":
+                return handleDiff(args);
+            case "mfd_trace":
+                return handleTrace(args);
             case "mfd_prompt":
                 return handlePrompt(args);
             case "mfd_visual_start":

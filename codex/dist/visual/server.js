@@ -10,6 +10,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadModelSnapshot } from "./data.js";
 import { createWatcher } from "./watcher.js";
+import { invalidateTimelineCache } from "./git-timeline.js";
 import { apiRoutes } from "./routes/api.js";
 import { sseRoutes, createSSEBroadcaster } from "./routes/sse.js";
 import { pageRoutes } from "./routes/pages.js";
@@ -69,6 +70,7 @@ const watcher = createWatcher(config.file, () => {
         const changes = describeChanges(snapshot, newSnapshot);
         snapshot = newSnapshot;
         lastValidSnapshot = newSnapshot;
+        invalidateTimelineCache();
         broadcaster.send("model-updated", {
             timestamp: Date.now(),
             stats: newSnapshot.stats,

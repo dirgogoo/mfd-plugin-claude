@@ -52,7 +52,7 @@ export function validateCommand(file, options) {
     // Show parse-level errors (syntax errors recovered from)
     for (const pe of parseErrors) {
         const diag = {
-            code: "E000",
+            code: pe.code ?? "E001",
             severity: "error",
             message: pe.message,
             location: pe.location,
@@ -61,7 +61,7 @@ export function validateCommand(file, options) {
         console.error(formatDiagnostic(diag, source));
         console.error();
     }
-    const result = validate(doc);
+    const result = validate(doc, { strict: options.strict });
     const totalErrors = parseErrors.length + result.errors.length;
     const totalWarnings = result.warnings.length;
     if (totalErrors === 0 && totalWarnings === 0) {

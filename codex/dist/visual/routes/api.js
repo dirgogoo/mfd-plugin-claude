@@ -3,6 +3,7 @@
  * Uses the central constructComponentMap for correct construct→component mapping.
  */
 import { Hono } from "hono";
+import { getOrLoadTimeline } from "../git-timeline.js";
 import { renderComponentEntityDiagram, renderComponentStateDiagram, renderComponentFlowDiagram, renderComponentScreenDiagram, renderComponentJourneyDiagram, renderComponentDepDiagram, } from "../html/component-diagrams.js";
 const DIAGRAM_TYPES = [
     "component", "entity", "state", "flow", "screen", "journey",
@@ -114,7 +115,7 @@ export function apiRoutes(getSnapshot) {
         })));
     });
     // Deep command palette: all constructs indexed
-    app.get("/api/constructs", (c) => {
+    app.get("/api/constructs", async (c) => {
         const snapshot = getSnapshot();
         if (!snapshot)
             return c.json({ error: "No model loaded" }, 503);
@@ -123,6 +124,7 @@ export function apiRoutes(getSnapshot) {
         // Pages
         items.push({ type: "page", name: "System Overview", component: "", href: "/" });
         items.push({ type: "page", name: "Progress Dashboard", component: "", href: "/dashboard" });
+        items.push({ type: "page", name: "System Timeline", component: "", href: "/timeline" });
         // Components
         for (const comp of snapshot.model.components) {
             items.push({
@@ -223,7 +225,42 @@ export function apiRoutes(getSnapshot) {
                 });
             }
         }
+        // Timeline commits — indexed for search
+        try {
+            const timeline = await getOrLoadTimeline(snapshot.filePath, 50);
+            for (const commit of timeline.commits) {
+                items.push({
+                    type: "commit",
+                    name: `${commit.shortHash} — ${commit.message}`,
+                    component: "",
+                    href: `/timeline?highlight=${commit.shortHash}`,
+                });
+                for (const ev of commit.subEvents) {
+                    if (ev.type === 'impl_added' || ev.type === 'impl_changed') {
+                        items.push({
+                            type: "impl",
+                            name: `${ev.detail ?? '@impl'} on ${ev.constructType}:${ev.constructName}`,
+                            component: "",
+                            href: `/timeline?highlight=${commit.shortHash}`,
+                            detail: commit.shortHash,
+                        });
+                    }
+                }
+            }
+        }
+        catch {
+            // Timeline unavailable — skip
+        }
         return c.json(items);
+    });
+    // Timeline API
+    app.get("/api/timeline", async (c) => {
+        const snapshot = getSnapshot();
+        if (!snapshot)
+            return c.json({ error: "No model loaded" }, 503);
+        const limit = parseInt(c.req.query("limit") ?? "100", 10);
+        const timeline = await getOrLoadTimeline(snapshot.filePath, limit);
+        return c.json(timeline);
     });
     return app;
 }

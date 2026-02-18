@@ -926,6 +926,7 @@ function buildFlowGraphData(flows, componentName, entityComponentMap, enumNames,
     const flowNodes = [];
     const ioNodeMap = new Map();
     const eventNodeMap = new Map();
+    const endpointNodeMap = new Map();
     const edges = [];
     const allEventNames = new Set(allEvents.map((e) => e.name));
     // --- Phase 1: Compute flowOpsMap before building flow nodes (needed for derived signatures) ---
@@ -1167,7 +1168,6 @@ function buildFlowGraphData(flows, componentName, entityComponentMap, enumNames,
     // Build operation nodes + endpoint nodes
     const usedRuleNames = new Set();
     const operationNodes = [];
-    const endpointNodeMap = new Map();
     for (const opName of usedOpNames) {
         const op = operations.find((o) => o.name === opName);
         const params = op.params.map((p) => formatType(p)).join(", ");
@@ -1679,7 +1679,7 @@ function buildScreenGraphData(screens, elements, actions, componentName, snapsho
     const screenToElements = new Map();
     // Collect all API endpoints in this component for matching
     const comp = snapshot.model.components.find((c) => c.name === componentName);
-    const compApis = comp ? comp.body.filter((b) => b.type === "ApiDecl") : [];
+    const compApis = (comp ? comp.body.filter((b) => b.type === "ApiDecl") : []);
     const resolvedEndpoints = [];
     for (const api of compApis) {
         const prefixDec = api.decorators?.find((d) => d.name === "prefix");
@@ -1687,7 +1687,7 @@ function buildScreenGraphData(screens, elements, actions, componentName, snapsho
         const apiName = api.name || "api";
         for (const ep of api.endpoints) {
             const fullPath = prefix + ep.path;
-            const retType = ep.returnType || ep.response;
+            const retType = ep.type === "ApiEndpointSimple" ? ep.returnType : ep.response;
             const returnTypeStr = retType ? formatType(retType) : null;
             const epId = `api:${ep.method}:${fullPath}`;
             resolvedEndpoints.push({

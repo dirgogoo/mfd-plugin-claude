@@ -1,5 +1,5 @@
 import { collectModel } from "../../core/validator/collect.js";
-import { generateContract, } from "../../core/contract/index.js";
+import { generateContractFiltered, compactContract, } from "../../core/contract/index.js";
 import { loadDocument } from "./common.js";
 // Map AST node types to contract array keys
 const DECL_TYPE_TO_KEY = {
@@ -18,7 +18,7 @@ const DECL_TYPE_TO_KEY = {
     DepDecl: "deps",
     SecretDecl: "secrets",
 };
-// User-facing type names to contract keys
+// User-facing type names to CollectedModel array keys
 const TYPE_FILTER_MAP = {
     entity: "entities",
     enum: "enums",
@@ -35,10 +35,8 @@ const TYPE_FILTER_MAP = {
     dep: "deps",
     secret: "secrets",
 };
-const CONSTRUCT_KEYS = Object.values(TYPE_FILTER_MAP);
 /**
- * Build a map from "contractKey:name" to component name by walking the AST directly.
- * This preserves the hierarchy without the heuristics of flat-model mapping.
+ * Build a map from construct name to component name by walking the AST directly.
  */
 function buildComponentOwnership(doc) {
     const map = new Map();
@@ -48,7 +46,6 @@ function buildComponentOwnership(doc) {
             if (!key)
                 continue;
             const name = item.name;
-            // For ApiDecl, name can be null — use prefix or index-based key
             const label = name ?? `api:${item.style ?? "unknown"}`;
             map.set(`${key}:${label}`, comp.name);
         }
@@ -68,17 +65,80 @@ function buildComponentOwnership(doc) {
     return map;
 }
 /**
- * Get the name of a contract item (most have .name, apis may not).
+ * Filter a CollectedModel BEFORE generating the contract.
+ * This avoids generating contracts for the entire model and then discarding most of it.
  */
-function getContractItemName(item) {
-    if (typeof item.name === "string")
-        return item.name;
-    return null;
+function filterCollectedModel(model, ownership, componentFilter, typeFilter, nameFilter) {
+    let totalMatches = 0;
+    function shouldInclude(collectionKey, itemName) {
+        if (componentFilter) {
+            const lookupKey = `${collectionKey}:${itemName ?? "unknown"}`;
+            const owner = ownership.get(lookupKey);
+            if (!owner || owner.toLowerCase() !== componentFilter)
+                return false;
+        }
+        if (nameFilter) {
+            if (!itemName || !itemName.toLowerCase().includes(nameFilter))
+                return false;
+        }
+        return true;
+    }
+    function filterArray(items, collectionKey, filterType, targetType) {
+        if (filterType && filterType !== targetType)
+            return [];
+        const filtered = items.filter(item => shouldInclude(collectionKey, item.name));
+        totalMatches += filtered.length;
+        return filtered;
+    }
+    const filteredModel = {
+        elements: filterArray(model.elements, "elements", typeFilter && TYPE_FILTER_MAP[typeFilter], "elements"),
+        entities: filterArray(model.entities, "entities", typeFilter && TYPE_FILTER_MAP[typeFilter], "entities"),
+        enums: filterArray(model.enums, "enums", typeFilter && TYPE_FILTER_MAP[typeFilter], "enums"),
+        flows: filterArray(model.flows, "flows", typeFilter && TYPE_FILTER_MAP[typeFilter], "flows"),
+        states: filterArray(model.states, "states", typeFilter && TYPE_FILTER_MAP[typeFilter], "states"),
+        events: filterArray(model.events, "events", typeFilter && TYPE_FILTER_MAP[typeFilter], "events"),
+        signals: filterArray(model.signals, "signals", typeFilter && TYPE_FILTER_MAP[typeFilter], "signals"),
+        apis: (() => {
+            const targetKey = typeFilter ? TYPE_FILTER_MAP[typeFilter] : null;
+            if (targetKey && targetKey !== "apis")
+                return [];
+            const filtered = model.apis.filter(api => {
+                const name = api.name ?? `api:${api.style ?? "unknown"}`;
+                return shouldInclude("apis", name);
+            });
+            totalMatches += filtered.length;
+            return filtered;
+        })(),
+        rules: filterArray(model.rules, "rules", typeFilter && TYPE_FILTER_MAP[typeFilter], "rules"),
+        screens: filterArray(model.screens, "screens", typeFilter && TYPE_FILTER_MAP[typeFilter], "screens"),
+        journeys: filterArray(model.journeys, "journeys", typeFilter && TYPE_FILTER_MAP[typeFilter], "journeys"),
+        operations: filterArray(model.operations, "operations", typeFilter && TYPE_FILTER_MAP[typeFilter], "operations"),
+        actions: filterArray(model.actions, "actions", typeFilter && TYPE_FILTER_MAP[typeFilter], "actions"),
+        deps: (() => {
+            const targetKey = typeFilter ? TYPE_FILTER_MAP[typeFilter] : null;
+            if (targetKey && targetKey !== "deps")
+                return [];
+            const filtered = model.deps.filter(d => shouldInclude("deps", d.target));
+            totalMatches += filtered.length;
+            return filtered;
+        })(),
+        secrets: (() => {
+            const targetKey = typeFilter ? TYPE_FILTER_MAP[typeFilter] : null;
+            if (targetKey && targetKey !== "secrets")
+                return [];
+            const filtered = model.secrets.filter(s => shouldInclude("secrets", s.name));
+            totalMatches += filtered.length;
+            return filtered;
+        })(),
+        // Keep full collections for reference (not filtered)
+        components: model.components,
+        systems: model.systems,
+    };
+    return { filteredModel, totalMatches };
 }
 export function handleQuery(args) {
     const { doc } = loadDocument(args.file, args.resolve_includes);
     const model = collectModel(doc);
-    const contract = generateContract(model);
     const ownership = buildComponentOwnership(doc);
     const componentFilter = args.component?.toLowerCase() ?? null;
     const typeFilter = args.type?.toLowerCase() ?? null;
@@ -95,41 +155,14 @@ export function handleQuery(args) {
             isError: true,
         };
     }
-    // Determine which contract keys to check
-    const keysToCheck = typeFilter
-        ? [TYPE_FILTER_MAP[typeFilter]]
-        : CONSTRUCT_KEYS;
-    // Filter the contract
-    const filtered = {};
-    let totalMatches = 0;
-    for (const key of keysToCheck) {
-        if (key === "version")
-            continue;
-        const items = contract[key];
-        if (!Array.isArray(items))
-            continue;
-        const matching = items.filter((item) => {
-            const record = item;
-            const itemName = getContractItemName(record);
-            // Filter by component
-            if (componentFilter) {
-                const lookupKey = `${key}:${itemName ?? `api:${record.style ?? "unknown"}`}`;
-                const owner = ownership.get(lookupKey);
-                if (!owner || owner.toLowerCase() !== componentFilter)
-                    return false;
-            }
-            // Filter by name (substring match, case-insensitive)
-            if (nameFilter) {
-                if (!itemName || !itemName.toLowerCase().includes(nameFilter))
-                    return false;
-            }
-            return true;
-        });
-        if (matching.length > 0) {
-            filtered[key] = matching;
-            totalMatches += matching.length;
-        }
+    // Phase 2 optimization: filter BEFORE generating contract
+    const { filteredModel, totalMatches } = filterCollectedModel(model, ownership, componentFilter, typeFilter, nameFilter);
+    // Generate contract only for filtered items, using full model for inheritance
+    const contract = generateContractFiltered(model, filteredModel);
+    if (args.compact) {
+        compactContract(contract);
     }
+    // Build result — strip empty arrays
     const result = {
         query: {
             component: args.component ?? null,
@@ -137,8 +170,14 @@ export function handleQuery(args) {
             name: args.name ?? null,
         },
         totalMatches,
-        ...filtered,
     };
+    for (const [key, value] of Object.entries(contract)) {
+        if (key === "version")
+            continue;
+        if (Array.isArray(value) && value.length > 0) {
+            result[key] = value;
+        }
+    }
     return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

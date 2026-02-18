@@ -5,6 +5,7 @@ interface QueryArgs {
     component?: string;
     type?: string;
     name?: string;
+    compact?: boolean;
 }
 export declare function handleQuery(args: QueryArgs): ToolResponse;
 export {};

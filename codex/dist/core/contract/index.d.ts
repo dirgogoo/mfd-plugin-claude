@@ -206,5 +206,18 @@ export interface OperationContract {
     decorators: string[];
 }
 export declare function generateContract(model: CollectedModel): ImplementationContract;
+/**
+ * Generate a contract from a filtered model, using the full model for inheritance resolution.
+ * This produces contracts only for items in filteredModel, but resolves extends/implements
+ * from the fullModel so inheritance chains are correct.
+ */
+export declare function generateContractFiltered(fullModel: CollectedModel, filteredModel: CollectedModel): ImplementationContract;
+/**
+ * Compact mode: strip redundant inherited data from a contract.
+ * For constructs with extends/implements, the `resolvedFields`/`resolvedSteps`/`resolvedProps`
+ * contain the full picture — so the local `fields`/`steps`/`props` can be emptied to save tokens.
+ * Only applies to constructs that actually have a parent (extends or implements).
+ */
+export declare function compactContract(contract: ImplementationContract): void;
 export declare function serializeContract(contract: ImplementationContract): string;
 //# sourceMappingURL=index.d.ts.map

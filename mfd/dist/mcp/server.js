@@ -310,7 +310,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
         {
             name: "mfd_prompt",
-            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao.",
+            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao, arquitetura, boas-praticas, brownfield.",
             inputSchema: {
                 type: "object",
                 properties: {

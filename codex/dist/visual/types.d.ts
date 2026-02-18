@@ -1,6 +1,6 @@
 import type { CollectedModel } from "../core/validator/collect.js";
 import type { ModelStats } from "../core/utils/stats.js";
-import type { Relationships } from "./relationships.js";
+import type { Relationships } from "../core/relationships/index.js";
 export type DiagramType = "component" | "entity" | "state" | "flow" | "screen" | "journey";
 export type ConstructType = "element" | "entity" | "enum" | "flow" | "api" | "state" | "event" | "signal" | "rule" | "screen" | "journey" | "operation" | "action";
 export interface DiagramSet {

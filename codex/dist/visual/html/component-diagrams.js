@@ -480,7 +480,7 @@ export function renderComponentRelationshipDiagram(snapshot, compName) {
     const enums = snapshot.model.enums.filter(e => ccMap.get(`enum:${e.name}`) === compName);
     const flows = snapshot.model.flows.filter(f => ccMap.get(`flow:${f.name}`) === compName);
     const comp = snapshot.model.components.find(c => c.name === compName);
-    const apis = comp ? comp.body.filter((b) => b.type === "ApiDecl") : [];
+    const apis = (comp ? comp.body.filter((b) => b.type === "ApiDecl") : []);
     const states = snapshot.model.states.filter(s => ccMap.get(`state:${s.name}`) === compName);
     const events = snapshot.model.events.filter(e => ccMap.get(`event:${e.name}`) === compName);
     const rules = snapshot.model.rules.filter(r => ccMap.get(`rule:${r.name}`) === compName);

@@ -6,6 +6,9 @@ export { handleRender, renderComponentDiagram, renderEntityDiagram, renderStateD
 export { handleContract } from "./contract.js";
 export { handleQuery } from "./query.js";
 export { handlePrompt } from "./prompt.js";
-export { handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, } from "./visual.js";
+export { handleContext } from "./context.js";
+export { handleDiff } from "./diff.js";
+export { handleTrace } from "./trace.js";
+export { handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./visual.js";
 export { handleListResources, handleReadResource, } from "../resources/index.js";
 //# sourceMappingURL=index.js.map

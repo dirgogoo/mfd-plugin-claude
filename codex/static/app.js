@@ -13,6 +13,7 @@ const canvasInstances = new Map();
 const entityGraphInstances = new Map();
 let activeTab = null;
 let focusedListIdx = -1;
+const NODE_FILTER_STORAGE_PREFIX = 'scope-node-filter:v1';
 
 // ===== Position Persistence (localStorage) =====
 
@@ -180,6 +181,23 @@ class DiagramCanvas {
 
 // ===== BaseGraph — Shared interactive graph infrastructure =====
 
+function normalizeNodeType(value) {
+  if (!value) return '';
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function humanizeNodeType(value) {
+  return String(value || 'unknown')
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 class BaseGraph {
   /**
    * @param {HTMLElement} container — div with data-graph
@@ -197,6 +215,8 @@ class BaseGraph {
     this.data = this._parseData(container);
     this.nodePositions = new Map();
     this.nodeElements = new Map();
+    this.nodeTypes = new Map();
+    this.nodeTypeFilter = null;
     this.zoom = 1;
     this.panX = 0;
     this.panY = 0;
@@ -439,6 +459,8 @@ class BaseGraph {
     if (data.ghost) div.classList.add('ghost');
     div.dataset.nodeId = data.id;
     div.dataset.href = data.href;
+    const nodeType = normalizeNodeType(data.constructType);
+    if (nodeType) div.dataset.nodeType = nodeType;
     return div;
   }
 
@@ -564,8 +586,87 @@ class BaseGraph {
 
   /** Register node in world + nodeElements map */
   registerNode(div, id) {
+    const typeHint = normalizeNodeType(div.dataset.nodeType);
+    div.dataset.nodeType = typeHint || this._inferNodeType(div);
+    this.nodeTypes.set(id, div.dataset.nodeType);
     this.worldEl.appendChild(div);
     this.nodeElements.set(id, div);
+  }
+
+  _inferNodeType(div) {
+    const classList = Array.from(div.classList);
+    const directMap = new Map([
+      ['scope-enum-node', 'enum'],
+      ['scope-entity-node', 'entity'],
+      ['scope-flow-node', 'flow'],
+      ['scope-flow-io-node', 'entity'],
+      ['scope-flow-event-node', 'event'],
+      ['scope-flow-endpoint-node', 'api'],
+      ['scope-operation-node', 'operation'],
+      ['scope-rule-node', 'rule'],
+      ['scope-event-node', 'event'],
+      ['scope-state-node', 'state'],
+      ['scope-state-event-node', 'event'],
+      ['scope-state-enum-node', 'enum'],
+      ['scope-screen-node', 'screen'],
+      ['scope-screen-element-node', 'element'],
+      ['scope-screen-action-node', 'action'],
+      ['scope-screen-api-node', 'api'],
+      ['scope-screen-entity-node', 'entity'],
+      ['scope-screen-signal-node', 'signal'],
+      ['scope-api-endpoint-node', 'api'],
+      ['scope-api-handler-node', 'operation'],
+      ['scope-api-consumer-node', 'action'],
+      ['scope-api-construct-node', 'construct'],
+      ['scope-journey-screen-node', 'screen'],
+      ['scope-journey-trigger-node', 'event'],
+      ['scope-journey-action-node', 'action'],
+      ['scope-journey-special-node', 'special'],
+      ['scope-component-node', 'component'],
+      ['scope-overview-node', 'construct'],
+      ['scope-graph-node', 'construct'],
+    ]);
+
+    for (const [cls, type] of directMap) {
+      if (div.classList.contains(cls)) return type;
+    }
+
+    for (const cls of classList) {
+      const m1 = cls.match(/^scope-(?:event|flow|screen|api|state|journey|overview|component)-(.+)-node$/);
+      if (m1 && m1[1] && m1[1] !== 'context') {
+        return normalizeNodeType(m1[1]);
+      }
+    }
+
+    return 'unknown';
+  }
+
+  setNodeTypeFilter(filter) {
+    if (filter === null || filter === undefined) {
+      this.nodeTypeFilter = null;
+    } else {
+      this.nodeTypeFilter = new Set(filter);
+    }
+    this.applyNodeVisibility();
+    this.renderEdges();
+  }
+
+  isNodeTypeVisible(nodeId) {
+    if (this.nodeTypeFilter === null) return true;
+    const type = this.nodeTypes.get(nodeId);
+    if (!type) return true;
+    return this.nodeTypeFilter.has(type);
+  }
+
+  isEdgeVisible(edge) {
+    return this.isNodeTypeVisible(edge.from) && this.isNodeTypeVisible(edge.to);
+  }
+
+  applyNodeVisibility() {
+    for (const [id, el] of this.nodeElements) {
+      const show = this.isNodeTypeVisible(id);
+      el.style.display = show ? '' : 'none';
+    }
   }
 }
 
@@ -690,6 +791,7 @@ class EntityGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -1368,6 +1470,7 @@ class FlowGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -1803,6 +1906,7 @@ class EventGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -2224,6 +2328,7 @@ class StateGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderStateEdge(edge);
     }
   }
@@ -2810,6 +2915,7 @@ class ScreenGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -3214,6 +3320,7 @@ class ApiGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -3655,6 +3762,7 @@ class JourneyGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -3921,6 +4029,7 @@ class OverviewGraph extends BaseGraph {
     this._typeColors = typeColors;
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -4224,6 +4333,7 @@ class ComponentGraph extends BaseGraph {
     this.svgEl.appendChild(defs);
 
     for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
       this._renderEdge(edge);
     }
   }
@@ -4522,6 +4632,7 @@ document.addEventListener('mousemove', (e) => {
 // ===== Phase 3: Component Tabs =====
 
 window.switchTab = function(tabName) {
+  closeNodeFilterPanel();
   // Sync tab panels
   const panels = document.querySelectorAll('.scope-tab-panel');
   panels.forEach(panel => {
@@ -4567,6 +4678,10 @@ window.switchTab = function(tabName) {
   activeTab = tabName;
   focusedListIdx = -1;
   updateFocusedItem();
+
+  if (getNavLevel() === 'component') {
+    applyNodeTypeFilterForCurrentScope();
+  }
 };
 
 function initDiagramCanvasesIn(parent) {
@@ -4692,6 +4807,7 @@ async function renderMermaidDiagrams() {
   initApiGraphs();
   initJourneyGraphs();
   initOverviewGraphs();
+  initTimeline();
   document.querySelectorAll('.scope-diagram-container').forEach(dc => {
     const mermaidEl = dc.querySelector('.mermaid');
     const type = dc.dataset.diagramType || mermaidEl?.dataset.type;
@@ -4803,6 +4919,7 @@ async function reloadContent() {
       initApiGraphs();
       initJourneyGraphs();
       initOverviewGraphs();
+      initTimeline();
           canvas.scrollTop = scrollTop;
     }
 
@@ -5124,6 +5241,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const nodeFilterPanel = document.getElementById('node-filter-panel');
+  if (nodeFilterPanel) {
+    nodeFilterPanel.addEventListener('click', handleNodeFilterPanelClick);
+  }
+
   loadCommandPaletteData();
 
   // Apply entering animation
@@ -5169,6 +5291,227 @@ function getFrameTabIds() {
     .map(el => el.dataset.tab);
 }
 
+function getActiveTabPanel() {
+  return document.querySelector('.scope-tab-panel.active');
+}
+
+function getNodeFilterScope() {
+  if (getNavLevel() !== 'component') return null;
+  const frameNav = document.getElementById('frame-nav');
+  if (!frameNav) return null;
+  const component = frameNav.dataset.component || '';
+  const tab = activeTab || getFrameTabIds()[0] || 'overview';
+  if (!component || !tab) return null;
+  return { component, tab };
+}
+
+function getNodeFilterKey(scope) {
+  return `${NODE_FILTER_STORAGE_PREFIX}:${encodeURIComponent(scope.component)}:${encodeURIComponent(scope.tab)}`;
+}
+
+function getNodeFilterFromStorage(scope, availableTypes) {
+  const key = getNodeFilterKey(scope);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    if (parsed.length === 0) return new Set();
+
+    const availableSet = new Set(availableTypes.map(t => t.type));
+    const filtered = parsed
+      .map((item) => normalizeNodeType(item))
+      .filter((item) => item && availableSet.has(item));
+    if (filtered.length === 0) return null;
+    return new Set(filtered);
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveNodeFilterToStorage(scope, filterSet) {
+  const key = getNodeFilterKey(scope);
+  if (filterSet === null) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.setItem(key, JSON.stringify(Array.from(filterSet.values())));
+}
+
+function getNodeTypesFromPanel(panel) {
+  const scope = panel || document.getElementById('canvas');
+  if (!scope) return [];
+  const nodes = scope.querySelectorAll('.scope-graph-node[data-node-type]');
+  const counter = new Map();
+  nodes.forEach((node) => {
+    const type = normalizeNodeType(node.dataset.nodeType) || 'unknown';
+    if (type === 'unknown') return;
+    counter.set(type, (counter.get(type) || 0) + 1);
+  });
+  return Array.from(counter.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([type, count]) => ({ type, label: humanizeNodeType(type), count }));
+}
+
+function getAllGraphMaps() {
+  return [
+    entityGraphInstances,
+    flowGraphInstances,
+    eventGraphInstances,
+    stateGraphInstances,
+    screenGraphInstances,
+    apiGraphInstances,
+    journeyGraphInstances,
+    overviewGraphInstances,
+    componentGraphInstances
+  ];
+}
+
+function getGraphInstancesForPanel(panel) {
+  const activePanel = panel || getActiveTabPanel();
+  const result = [];
+  for (const map of getAllGraphMaps()) {
+    for (const [container, graph] of map) {
+      if (!activePanel || container.closest('.scope-tab-panel') === activePanel) {
+        result.push(graph);
+      }
+    }
+  }
+  return result;
+}
+
+const NODE_TYPE_COLOR_MAP = {
+  flow: 'var(--scope-type-flow)',
+  entity: 'var(--scope-type-entity)',
+  state: 'var(--scope-type-state)',
+  api: 'var(--scope-type-api)',
+  screen: 'var(--scope-type-screen)',
+  event: 'var(--scope-type-event)',
+  signal: 'var(--scope-type-signal)',
+  operation: 'var(--scope-type-operation)',
+  rule: 'var(--scope-type-rule)',
+  journey: 'var(--scope-type-journey)',
+  enum: 'var(--scope-type-enum)',
+  element: 'var(--scope-type-element)',
+  action: 'var(--scope-type-action)',
+};
+
+function renderNodeFilterRows(types, filterSet) {
+  const list = document.getElementById('node-filter-list');
+  if (!list) return;
+
+  if (types.length === 0) {
+    list.innerHTML = '<div class="scope-node-filter-empty">No node types found in this view.</div>';
+    return;
+  }
+
+  const currentFilter = filterSet === null ? null : new Set(filterSet);
+  list.innerHTML = '';
+
+  for (const { type, label, count } of types) {
+    const checked = currentFilter === null || currentFilter.has(type);
+    const colorVar = NODE_TYPE_COLOR_MAP[type] || '#FFFFFF';
+
+    const row = document.createElement('label');
+    row.className = 'scope-node-filter-row';
+    row.style.setProperty('--scope-filter-type-color', colorVar);
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = checked;
+    checkbox.dataset.nodeType = type;
+
+    const wrapper = document.createElement('span');
+    wrapper.innerHTML =
+      `<span class="scope-node-filter-check">${checked ? '[x]' : '[ ]'}</span>` +
+      `<span class="scope-node-filter-dot"></span>` +
+      `<span class="scope-node-filter-type">${escapeHtml(label)}</span>` +
+      `<span class="scope-node-filter-count">${count}</span>`;
+
+    checkbox.addEventListener('change', (e) => {
+      const activeScope = getNodeFilterScope();
+      if (!activeScope) return;
+      let next = getNodeFilterStateForActivePanel();
+      if (next === null) {
+        next = new Set(types.map((item) => item.type));
+      }
+      if ((e.target).checked) {
+        next.add(type);
+      } else {
+        next.delete(type);
+      }
+      applyNodeTypeFilterForCurrentScope(null, next);
+      renderNodeFilterRows(types, next);
+      saveNodeFilterToStorage(activeScope, next);
+    });
+
+    row.append(checkbox, wrapper);
+    list.appendChild(row);
+  }
+}
+
+function getNodeFilterStateForActivePanel(explicitPanel) {
+  const scope = getNodeFilterScope();
+  if (!scope) return null;
+
+  const panel = explicitPanel || getActiveTabPanel() || document.getElementById('canvas');
+  const types = getNodeTypesFromPanel(panel);
+  return getNodeFilterFromStorage(scope, types);
+}
+
+function applyNodeTypeFilterForCurrentScope(panel, overrideFilter) {
+  const activePanel = panel || getActiveTabPanel() || document.getElementById('canvas');
+  if (!activePanel) return;
+
+  const scope = getNodeFilterScope();
+  if (!scope) {
+    for (const graph of getGraphInstancesForPanel(activePanel)) {
+      graph.setNodeTypeFilter(null);
+    }
+    return;
+  }
+
+  const types = getNodeTypesFromPanel(activePanel);
+  const filter = overrideFilter ?? getNodeFilterFromStorage(scope, types);
+  for (const graph of getGraphInstancesForPanel(activePanel)) {
+    graph.setNodeTypeFilter(filter);
+  }
+
+  const filterPanel = document.getElementById('node-filter-panel');
+  if (filterPanel?.classList.contains('open')) {
+    renderNodeFilterRows(types, filter);
+  }
+  saveNodeFilterToStorage(scope, filter);
+  return filter;
+}
+
+function openNodeFilterPanel() {
+  const panel = document.getElementById('node-filter-panel');
+  if (!panel) return;
+
+  const activePanel = getActiveTabPanel() || document.getElementById('canvas');
+  if (!activePanel) return;
+
+  const scope = getNodeFilterScope();
+  if (!scope) return;
+
+  const types = getNodeTypesFromPanel(activePanel);
+  const filter = getNodeFilterFromStorage(scope, types);
+  renderNodeFilterRows(types, filter);
+  saveNodeFilterToStorage(scope, filter);
+  panel.classList.add('open');
+}
+
+function closeNodeFilterPanel() {
+  const panel = document.getElementById('node-filter-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+function handleNodeFilterPanelClick(e) {
+  const panel = document.getElementById('node-filter-panel');
+  if (panel && e.target === panel) closeNodeFilterPanel();
+}
+
 // ===== Keyboard Shortcuts =====
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -5187,11 +5530,14 @@ document.addEventListener('keydown', (e) => {
   if (key === 'Escape') {
     const palette = document.getElementById('command-palette');
     const shortcuts = document.getElementById('shortcuts-panel');
+    const nodeFilterPanel = document.getElementById('node-filter-panel');
     const compPanel = document.querySelector('.scope-components-panel.open');
     if (palette?.classList.contains('open')) {
       closeCommandPalette();
     } else if (shortcuts?.classList.contains('open')) {
       shortcuts.classList.remove('open');
+    } else if (nodeFilterPanel?.classList.contains('open')) {
+      closeNodeFilterPanel();
     } else if (compPanel) {
       compPanel.classList.remove('open');
     } else if (level === 'construct') {
@@ -5220,6 +5566,15 @@ document.addEventListener('keydown', (e) => {
   if (key === '?') {
     const panel = document.getElementById('shortcuts-panel');
     if (panel) panel.classList.toggle('open');
+    return;
+  }
+
+  if (key === '.') {
+    const filterBtn = document.getElementById('frame-filter-btn');
+    if (level === 'component' && filterBtn) {
+      e.preventDefault();
+      openNodeFilterPanel();
+    }
     return;
   }
 
@@ -5293,6 +5648,8 @@ document.addEventListener('keydown', (e) => {
         navigateSPA('/components');
       } else if (numKey === 3) {
         navigateSPA('/dashboard');
+      } else if (numKey === 4) {
+        navigateSPA('/timeline');
       }
     }
     return;
@@ -5381,6 +5738,9 @@ function setupFrameNavHandlers() {
   const searchBtn = document.getElementById('frame-search-btn');
   if (searchBtn) searchBtn.addEventListener('click', () => openCommandPalette());
 
+  const filterBtn = document.getElementById('frame-filter-btn');
+  if (filterBtn) filterBtn.addEventListener('click', () => openNodeFilterPanel());
+
   const helpBtn = document.getElementById('frame-help-btn');
   if (helpBtn) {
     helpBtn.addEventListener('click', () => {
@@ -5418,6 +5778,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ===== SPA Navigation (no full page reload) =====
 async function navigateSPA(href) {
+  closeCommandPalette();
+  closeNodeFilterPanel();
   const canvas = document.getElementById('canvas');
   if (canvas) canvas.classList.add('transitioning');
 
@@ -5472,6 +5834,7 @@ async function navigateSPA(href) {
     initApiGraphs();
     initJourneyGraphs();
     initOverviewGraphs();
+    initTimeline();
 
     // Restore active tab if component level
     const level = getNavLevel();
@@ -5495,6 +5858,258 @@ async function navigateSPA(href) {
 window.addEventListener('popstate', () => {
   navigateSPA(window.location.href);
 });
+
+// ===== Timeline =====
+
+/** @type {any[]|null} */
+let timelineCommits = null;
+
+function initTimeline() {
+  const page = document.getElementById('timeline-page');
+  if (!page) return;
+
+  fetchTimelineData();
+
+  // Modal close
+  const closeBtn = document.getElementById('timeline-modal-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeTimelineModal);
+  const overlay = document.getElementById('timeline-detail-modal');
+  if (overlay) overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeTimelineModal();
+  });
+}
+
+async function fetchTimelineData() {
+  const summary = document.getElementById('timeline-summary');
+  try {
+    const resp = await fetch('/api/timeline');
+    const data = await resp.json();
+    timelineCommits = data.commits || [];
+
+    if (summary) {
+      if (timelineCommits.length === 0) {
+        summary.textContent = 'No git history found for .mfd files';
+      } else {
+        const totalEvents = timelineCommits.reduce((s, c) => s + c.subEvents.length, 0);
+        summary.textContent = `${timelineCommits.length} commits, ${totalEvents} events`;
+      }
+    }
+
+    renderTimelineCanvas();
+  } catch (e) {
+    console.warn('Timeline fetch error:', e);
+    if (summary) summary.textContent = 'Error loading git history';
+  }
+}
+
+function wrapText(text, maxChars) {
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    if (current.length + word.length + 1 > maxChars && current.length > 0) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current ? current + ' ' + word : word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [text];
+}
+
+function renderTimelineCanvas() {
+  const container = document.getElementById('timeline-canvas-container');
+  if (!container || !timelineCommits || timelineCommits.length === 0) {
+    if (container) container.innerHTML = '<div class="timeline-empty">No commits to display</div>';
+    return;
+  }
+
+  // Chronological order: oldest first (left) → newest (right)
+  const commits = [...timelineCommits].reverse();
+  const gap = 300;
+  const padding = 160;
+  const centerY = 200;
+  const svgWidth = padding * 2 + Math.max((commits.length - 1) * gap, 300);
+  const svgHeight = 400;
+  const connectorLen = 40;
+  const lineH = 16;
+
+  const colorMap = { impl: '#34D399', model: '#60A5FA', refactor: '#FB923C', minor: '#888888' };
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`;
+
+  // Horizontal line — edge to edge ("infinite")
+  svg += `<line x1="0" y1="${centerY}" x2="${svgWidth}" y2="${centerY}" stroke="var(--scope-border)" stroke-width="2"/>`;
+
+  commits.forEach((commit, i) => {
+    const x = commits.length === 1
+      ? svgWidth / 2
+      : padding + (i / (commits.length - 1)) * (svgWidth - padding * 2);
+
+    const totalChanges = commit.subEvents.length;
+    const r = Math.min(14, Math.max(5, 4 + totalChanges));
+    const color = colorMap[getDotColor(commit)] || '#888888';
+    const above = i % 2 === 0;
+
+    // Connector endpoints
+    const connY1 = above ? centerY - r : centerY + r;
+    const connY2 = above ? centerY - r - connectorLen : centerY + r + connectorLen;
+
+    // Message lines
+    const msgLines = wrapText(commit.message, 35);
+    const dateStr = formatShortDate(commit.date);
+
+    svg += `<g class="timeline-node" data-hash="${commit.shortHash}">`;
+
+    // Circle
+    svg += `<circle cx="${x}" cy="${centerY}" r="${r}" fill="${color}"/>`;
+
+    // Connector line
+    svg += `<line x1="${x}" y1="${connY1}" x2="${x}" y2="${connY2}" stroke="var(--scope-border)" stroke-width="1" opacity="0.4"/>`;
+
+    // Text label
+    if (above) {
+      // Labels above: text grows upward from connector end
+      const totalTextLines = msgLines.length + 1;
+      const textStartY = connY2 - (totalTextLines - 1) * lineH - 4;
+
+      svg += `<text x="${x}" text-anchor="middle" font-size="11">`;
+      msgLines.forEach((line, li) => {
+        svg += `<tspan x="${x}" y="${textStartY + li * lineH}">${escapeHtml(line)}</tspan>`;
+      });
+      svg += `<tspan x="${x}" y="${textStartY + msgLines.length * lineH + 4}" class="timeline-svg-date" font-size="10">${dateStr}</tspan>`;
+      svg += '</text>';
+    } else {
+      // Labels below: text grows downward from connector end
+      const textStartY = connY2 + lineH;
+
+      svg += `<text x="${x}" text-anchor="middle" font-size="11">`;
+      msgLines.forEach((line, li) => {
+        svg += `<tspan x="${x}" y="${textStartY + li * lineH}">${escapeHtml(line)}</tspan>`;
+      });
+      svg += `<tspan x="${x}" y="${textStartY + msgLines.length * lineH + 4}" class="timeline-svg-date" font-size="10">${dateStr}</tspan>`;
+      svg += '</text>';
+    }
+
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+
+  // Click handlers on SVG nodes
+  container.querySelectorAll('.timeline-node').forEach(node => {
+    node.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const hash = node.getAttribute('data-hash');
+      const commit = timelineCommits.find(c => c.shortHash === hash);
+      if (commit) openTimelineModal(commit);
+    });
+  });
+
+  // Reuse DiagramCanvas for zoom/pan
+  if (canvasInstances.has(container)) canvasInstances.get(container).destroy();
+  const canvas = new DiagramCanvas(container);
+  canvasInstances.set(container, canvas);
+}
+
+function getDotColor(commit) {
+  const s = commit.stats;
+  if (s.implAdded > 0 && s.implAdded >= s.added) return 'impl';
+  if (s.added > 0 && s.added >= s.modified + s.removed) return 'model';
+  if (s.modified > 0 || s.removed > 0) return 'refactor';
+  return 'minor';
+}
+
+function formatShortDate(isoDate) {
+  const d = new Date(isoDate);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}`;
+}
+
+function formatFullDate(isoDate) {
+  const d = new Date(isoDate);
+  return d.toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function openTimelineModal(commit) {
+  const modal = document.getElementById('timeline-detail-modal');
+  if (!modal) return;
+
+  const header = document.getElementById('timeline-modal-header');
+  const message = document.getElementById('timeline-modal-message');
+  const stats = document.getElementById('timeline-modal-stats');
+  const events = document.getElementById('timeline-modal-events');
+
+  if (header) {
+    header.innerHTML = `
+      <span class="timeline-modal-hash">${commit.hash}</span>
+      <span class="timeline-modal-author">${escapeHtml(commit.author)}</span>
+      <span class="timeline-modal-date">${formatFullDate(commit.date)}</span>`;
+  }
+
+  if (message) {
+    message.textContent = commit.message;
+  }
+
+  if (stats) {
+    const badges = [];
+    const s = commit.stats;
+    if (s.added > 0) badges.push(`<span class="timeline-modal-stat added">+${s.added} added</span>`);
+    if (s.removed > 0) badges.push(`<span class="timeline-modal-stat removed">-${s.removed} removed</span>`);
+    if (s.modified > 0) badges.push(`<span class="timeline-modal-stat modified">~${s.modified} modified</span>`);
+    if (s.implAdded > 0) badges.push(`<span class="timeline-modal-stat impl-added">+${s.implAdded} impl</span>`);
+    if (s.implRemoved > 0) badges.push(`<span class="timeline-modal-stat impl-removed">-${s.implRemoved} impl</span>`);
+    stats.innerHTML = badges.join('');
+  }
+
+  if (events) {
+    if (commit.subEvents.length === 0) {
+      events.innerHTML = '<div class="timeline-modal-events-title">No construct-level changes detected</div>';
+    } else {
+      const typeLabels = {
+        construct_added: 'added',
+        construct_removed: 'removed',
+        construct_modified: 'modified',
+        impl_added: '+impl',
+        impl_removed: '-impl',
+        impl_changed: '~impl',
+      };
+
+      const rows = commit.subEvents.map(ev => {
+        const label = typeLabels[ev.type] || ev.type;
+        const detail = ev.detail ? `<span class="timeline-subevent-detail">${escapeHtml(ev.detail)}</span>` : '';
+        return `<div class="timeline-subevent ${ev.type}">
+          <span class="timeline-subevent-type">${label}</span>
+          <span class="timeline-subevent-name">${escapeHtml(ev.constructType)}:${escapeHtml(ev.constructName)}</span>
+          ${detail}
+        </div>`;
+      }).join('');
+
+      events.innerHTML = `<div class="timeline-modal-events-title">Changes (${commit.subEvents.length})</div>${rows}`;
+    }
+  }
+
+  modal.style.display = '';
+
+  // Close on Esc
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      closeTimelineModal();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
+function closeTimelineModal() {
+  const modal = document.getElementById('timeline-detail-modal');
+  if (modal) modal.style.display = 'none';
+}
 
 // ===== Helpers =====
 function escapeHtml(str) {

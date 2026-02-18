@@ -8,10 +8,14 @@ export interface ResolveResult {
     errors: ResolveError[];
 }
 export interface ResolveError {
-    type: "CIRCULAR_INCLUDE" | "FILE_NOT_FOUND" | "PARSE_ERROR";
+    type: "CIRCULAR_INCLUDE" | "FILE_NOT_FOUND" | "PARSE_ERROR" | "MAX_DEPTH_EXCEEDED" | "SUSPICIOUS_PATH";
     message: string;
     file: string;
     includedFrom?: string;
+    location?: {
+        line: number;
+        column: number;
+    };
 }
 export interface ResolveOptions {
     /** Base directory for resolving relative paths */

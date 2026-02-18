@@ -1,5 +1,6 @@
 interface ValidateOptions {
     resolve?: boolean;
+    strict?: boolean;
 }
 export declare function validateCommand(file: string, options: ValidateOptions): void;
 export {};

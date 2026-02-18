@@ -1,1 +1,1 @@
-{"version":3,"file":"api.d.ts","sourceRoot":"","sources":["../../../src/visual/routes/api.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAC5B,OAAO,KAAK,EAAE,aAAa,EAAe,MAAM,aAAa,CAAC;AAc9D,wBAAgB,SAAS,CAAC,WAAW,EAAE,MAAM,aAAa,GAAG,IAAI,GAAG,IAAI,CA4QvE"}
+{"version":3,"file":"api.d.ts","sourceRoot":"","sources":["../../../src/visual/routes/api.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAC5B,OAAO,KAAK,EAAE,aAAa,EAAe,MAAM,aAAa,CAAC;AAe9D,wBAAgB,SAAS,CAAC,WAAW,EAAE,MAAM,aAAa,GAAG,IAAI,GAAG,IAAI,CAiTvE"}

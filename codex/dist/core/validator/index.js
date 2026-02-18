@@ -18,6 +18,13 @@ import { actionCompleteness } from "./rules/action-completeness.js";
 import { streamEndpointValidation } from "./rules/stream-endpoint-validation.js";
 import { inheritanceValidation } from "./rules/inheritance-validation.js";
 import { elementCompleteness } from "./rules/element-completeness.js";
+import { orphanDetection } from "./rules/orphan-detection.js";
+import { qualityGuards } from "./rules/quality-guards.js";
+import { stateRigor } from "./rules/state-rigor.js";
+import { errorPathCoverage } from "./rules/error-path-coverage.js";
+import { godCoreDetection } from "./rules/god-core-detection.js";
+import { uiQuality } from "./rules/ui-quality.js";
+import { abstractionHygiene } from "./rules/abstraction-hygiene.js";
 const allRules = [
     referentialIntegrity,
     circularDeps,
@@ -39,14 +46,30 @@ const allRules = [
     streamEndpointValidation,
     inheritanceValidation,
     elementCompleteness,
+    orphanDetection,
+    qualityGuards,
+    stateRigor,
+    errorPathCoverage,
+    godCoreDetection,
+    uiQuality,
+    abstractionHygiene,
 ];
 /**
  * Validate an MFD document against all semantic rules.
+ * When `strict` is true, all warnings are promoted to errors.
  */
-export function validate(doc) {
+export function validate(doc, options = {}) {
     const diagnostics = [];
     for (const rule of allRules) {
         diagnostics.push(...rule(doc));
+    }
+    // In strict mode, promote all warnings to errors
+    if (options.strict) {
+        for (const d of diagnostics) {
+            if (d.severity === "warning") {
+                d.severity = "error";
+            }
+        }
     }
     const errors = diagnostics.filter((d) => d.severity === "error");
     const warnings = diagnostics.filter((d) => d.severity === "warning");

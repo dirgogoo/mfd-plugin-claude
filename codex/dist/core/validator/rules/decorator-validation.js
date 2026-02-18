@@ -31,6 +31,7 @@ const KNOWN_DECORATORS = {
     // Dep
     type: { params: "identifier" },
     // Secret
+    required: { params: "none" },
     rotation: { params: "duration" },
     provider: { params: "identifier" },
     // Relationships
@@ -43,6 +44,48 @@ const VALID_STATUS = new Set(["modeling", "implementing", "production", "depreca
     "implemented", "in_progress", "pending", "verified"]);
 /** Deprecated @impl label values — replaced by file paths */
 const DEPRECATED_IMPL_VALUES = new Set(["done", "backend", "frontend", "partial"]);
+/** All known decorator names for "did you mean?" suggestions */
+const ALL_DECORATOR_NAMES = Object.keys(KNOWN_DECORATORS);
+/** Human-readable descriptions for decorator parameter types */
+const PARAM_DESCRIPTIONS = {
+    number: "a number, e.g. @min(1)",
+    identifier: "an identifier, e.g. @requires(admin)",
+    "identifier|string": "a format, e.g. @format(email)",
+    string: "a string value, e.g. @prefix(/api)",
+    rate: "a rate, e.g. @rate_limit(100/min)",
+    duration: "a duration, e.g. @cache(5m)",
+};
+/**
+ * Simple Levenshtein distance for "did you mean?" suggestions.
+ */
+function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++)
+        dp[i][0] = i;
+    for (let j = 0; j <= n; j++)
+        dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            dp[i][j] = a[i - 1] === b[j - 1]
+                ? dp[i - 1][j - 1]
+                : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+    }
+    return dp[m][n];
+}
+function suggestDecorator(name) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const known of ALL_DECORATOR_NAMES) {
+        const d = levenshtein(name, known);
+        if (d < bestDist && d <= 2) {
+            bestDist = d;
+            best = known;
+        }
+    }
+    return best;
+}
 /** Constructs that support @abstract */
 const ABSTRACT_VALID_CONSTRUCTS = new Set([
     "ElementDecl", "EntityDecl", "FlowDecl", "EventDecl", "SignalDecl", "ScreenDecl", "ComponentDecl",
@@ -59,8 +102,20 @@ export function decoratorValidation(doc) {
     const diagnostics = [];
     function checkDecorator(deco, constructType) {
         const spec = KNOWN_DECORATORS[deco.name];
-        if (!spec)
-            return; // Unknown decorators are allowed (extensibility)
+        if (!spec) {
+            // DECORATOR_UNKNOWN: warn on unrecognized decorators with "did you mean?" suggestion
+            const suggestion = suggestDecorator(deco.name);
+            diagnostics.push({
+                code: "DECORATOR_UNKNOWN",
+                severity: "warning",
+                message: `Unknown decorator '@${deco.name}'`,
+                location: deco.loc,
+                help: suggestion
+                    ? `Did you mean '@${suggestion}'?`
+                    : `Known decorators: ${ALL_DECORATOR_NAMES.join(", ")}`,
+            });
+            return;
+        }
         if (spec.params === "none" && deco.params.length > 0) {
             diagnostics.push({
                 code: "DECORATOR_INVALID",
@@ -73,7 +128,7 @@ export function decoratorValidation(doc) {
             diagnostics.push({
                 code: "DECORATOR_INVALID",
                 severity: "warning",
-                message: `Decorator '@${deco.name}' expects a parameter`,
+                message: `Decorator '@${deco.name}' expects ${PARAM_DESCRIPTIONS[spec.params] || "a parameter"}`,
                 location: deco.loc,
             });
         }
@@ -113,6 +168,33 @@ export function decoratorValidation(doc) {
                         help: `Use a relative path like @impl(src/path/to/file.ts)`,
                     });
                 }
+            }
+        }
+        // PREFIX_NO_LEADING_SLASH: @prefix(users) without leading /
+        if (deco.name === "prefix" && deco.params.length > 0) {
+            const val = deco.params[0].value;
+            if (typeof val === "string" && val.length > 0 && !val.startsWith("/")) {
+                diagnostics.push({
+                    code: "PREFIX_NO_LEADING_SLASH",
+                    severity: "warning",
+                    message: `@prefix('${val}') should start with '/'`,
+                    location: deco.loc,
+                    help: `Use @prefix(/${val}) instead`,
+                });
+            }
+        }
+        // DECORATOR_INVALID_VALUE: @rate_limit / @timeout with value <= 0
+        if ((deco.name === "rate_limit" || deco.name === "timeout" || deco.name === "retry") && deco.params.length > 0) {
+            const param = deco.params[0];
+            const numVal = param.kind === "number" ? Number(param.value) : null;
+            if (numVal !== null && numVal <= 0) {
+                diagnostics.push({
+                    code: "DECORATOR_INVALID_VALUE",
+                    severity: "warning",
+                    message: `@${deco.name}(${param.value}) must have a positive value`,
+                    location: deco.loc,
+                    help: `Use a value greater than 0`,
+                });
             }
         }
     }

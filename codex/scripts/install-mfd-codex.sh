@@ -12,15 +12,19 @@ Usage: install-mfd-codex.sh [options]
 Instala a toolchain MFD para o ambiente atual do Codex.
 
 Options:
-  --bin-dir PATH   Diretório dos binários (padrao: ~/.local/bin)
-  --force          Recria links mesmo se já existirem
+  --bin-dir PATH   Diretorio dos binarios (padrao: ~/.local/bin)
+  --force          Recria links mesmo se ja existirem
   --no-deps        Pula instalacao de dependencias npm
+  --no-mcp         Pula registro do MCP server no Codex
+  --no-agents      Pula copia do AGENTS.md para o projeto
   --help           Exibe esta mensagem
 USAGE
 }
 
 FORCE=false
 SKIP_DEPS=false
+SKIP_MCP=false
+SKIP_AGENTS=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -29,6 +33,12 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-deps)
       SKIP_DEPS=true
+      ;;
+    --no-mcp)
+      SKIP_MCP=true
+      ;;
+    --no-agents)
+      SKIP_AGENTS=true
       ;;
     --bin-dir)
       if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
@@ -51,20 +61,31 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+# --- Pre-checks ---
+
 if ! command -v node >/dev/null 2>&1; then
-  echo "Erro: node nao encontrado. Instale Node.js antes de continuar." >&2
+  echo "Erro: node nao encontrado. Instale Node.js >= 18 antes de continuar." >&2
   exit 1
 fi
 
-if [ ! -d "$PLUGIN_DIR/dist" ]; then
-  echo "Erro: distribui\u00e7\u00e3o ainda n\u00e3o compilada (dist/ ausente). Execute: npx tsx scripts/build-plugin.ts" >&2
+NODE_MAJOR="$(node -e 'console.log(process.versions.node.split(".")[0])')"
+if [[ "$NODE_MAJOR" -lt 18 ]]; then
+  echo "Erro: Node.js >= 18 necessario (encontrado: v$(node -v))." >&2
   exit 1
 fi
 
-if [ "$SKIP_DEPS" = false ]; then
-  if [ -f "$PLUGIN_DIR/package.json" ]; then
-    if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-      echo "Instalando dependencias do mfd (apenas production)..."
+if [[ ! -d "$PLUGIN_DIR/dist" ]]; then
+  echo "Erro: distribuicao ainda nao compilada (dist/ ausente)." >&2
+  echo "Execute: npx tsx scripts/build-plugin.ts" >&2
+  exit 1
+fi
+
+# --- Dependencies ---
+
+if [[ "$SKIP_DEPS" == false ]]; then
+  if [[ -f "$PLUGIN_DIR/package.json" ]]; then
+    if [[ ! -d "$PLUGIN_DIR/node_modules" ]]; then
+      echo "Instalando dependencias do MFD (apenas production)..."
       npm install --omit=dev --prefix "$PLUGIN_DIR" --silent
     else
       echo "Dependencias ja instaladas."
@@ -72,40 +93,103 @@ if [ "$SKIP_DEPS" = false ]; then
   fi
 fi
 
+# --- Symlinks ---
+
 mkdir -p "$LOCAL_BIN"
 
 LINKS=(
   "mfd:$PLUGIN_DIR/dist/core/cli/index.js"
   "mfd-mcp:$PLUGIN_DIR/bin/mfd-mcp"
-  "mfd-lsp:$PLUGIN_DIR/dist/lsp/server.js"
 )
 
 for entry in "${LINKS[@]}"; do
   name="${entry%%:*}"
   target="${entry#*:}"
 
-  if [ ! -f "$target" ]; then
+  if [[ ! -f "$target" ]]; then
     echo "Aviso: $target nao encontrado. Pulando $name."
     continue
   fi
 
-  if [ -e "$LOCAL_BIN/$name" ] && [ "$FORCE" != true ]; then
-    echo "Já existe: $LOCAL_BIN/$name (use --force para substituir)."
+  if [[ -e "$LOCAL_BIN/$name" ]] && [[ "$FORCE" != true ]]; then
+    echo "Ja existe: $LOCAL_BIN/$name (use --force para substituir)."
     continue
   fi
 
   ln -sf "$target" "$LOCAL_BIN/$name"
   chmod +x "$target"
-
   echo "Criado: $LOCAL_BIN/$name -> $target"
-
 done
 
-echo
-if ! echo "$PATH" | tr ':' '\n' | grep -qx "$LOCAL_BIN"; then
-  echo "Aten\u00e7\u00e3o: $LOCAL_BIN nao esta no PATH."
-  echo "Adicione temporariamente:"
-  echo "  export PATH=\"$LOCAL_BIN:\$PATH\""
+# --- MCP Registration ---
+
+if [[ "$SKIP_MCP" == false ]]; then
+  if command -v codex >/dev/null 2>&1; then
+    echo ""
+    echo "Registrando MCP server no Codex..."
+    if codex mcp add mfd-tools -- node "$PLUGIN_DIR/dist/mcp/server.js" 2>/dev/null; then
+      echo "MCP server 'mfd-tools' registrado com sucesso."
+    else
+      echo "Aviso: falha ao registrar MCP server. Registre manualmente:"
+      echo "  codex mcp add mfd-tools -- node \"$PLUGIN_DIR/dist/mcp/server.js\""
+    fi
+  else
+    echo ""
+    echo "Aviso: 'codex' nao encontrado no PATH. Pule com --no-mcp ou registre manualmente:"
+    echo "  codex mcp add mfd-tools -- node \"$PLUGIN_DIR/dist/mcp/server.js\""
+  fi
 fi
 
-echo "Instalacao do MFD para Codex concluida."
+# --- AGENTS.md ---
+
+if [[ "$SKIP_AGENTS" == false ]]; then
+  if [[ -f "$PLUGIN_DIR/AGENTS.md" ]]; then
+    AGENTS_DEST="${AGENTS_DEST:-.codex/AGENTS.md}"
+    if [[ -f "$AGENTS_DEST" ]]; then
+      echo ""
+      echo "AGENTS.md ja existe em $AGENTS_DEST (nao sobrescrevendo)."
+      echo "  Para atualizar, remova e rode novamente."
+    else
+      mkdir -p "$(dirname "$AGENTS_DEST")"
+      cp "$PLUGIN_DIR/AGENTS.md" "$AGENTS_DEST"
+      echo ""
+      echo "Copiado: AGENTS.md -> $AGENTS_DEST"
+    fi
+  fi
+fi
+
+# --- PATH check ---
+
+echo ""
+if ! echo "$PATH" | tr ':' '\n' | grep -qx "$LOCAL_BIN"; then
+  echo "Atencao: $LOCAL_BIN nao esta no PATH."
+  echo "Adicione ao seu shell profile:"
+  echo "  export PATH=\"$LOCAL_BIN:\$PATH\""
+  echo ""
+fi
+
+# --- Verification ---
+
+echo "Verificando instalacao..."
+ERRORS=0
+
+if command -v mfd >/dev/null 2>&1; then
+  echo "  mfd: OK"
+else
+  echo "  mfd: NAO ENCONTRADO (verifique o PATH)"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if command -v mfd-mcp >/dev/null 2>&1; then
+  echo "  mfd-mcp: OK"
+else
+  echo "  mfd-mcp: NAO ENCONTRADO (verifique o PATH)"
+  ERRORS=$((ERRORS + 1))
+fi
+
+echo ""
+if [[ "$ERRORS" -eq 0 ]]; then
+  echo "Instalacao do MFD para Codex concluida com sucesso."
+else
+  echo "Instalacao concluida com $ERRORS aviso(s). Verifique o PATH."
+fi

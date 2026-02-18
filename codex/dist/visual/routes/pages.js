@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { renderLayout } from "../html/layout.js";
 import { renderOverview, renderSystemInfo } from "../html/overview.js";
 import { renderDashboard } from "../html/dashboard.js";
+import { renderTimeline } from "../html/timeline.js";
 import { renderComponentDetail } from "../html/component-detail.js";
 import { renderConstructDetail } from "../html/construct-detail.js";
 const CONSTRUCT_TYPES = [
@@ -73,6 +74,26 @@ export function pageRoutes(getSnapshot) {
                 { label: "Progress" },
             ],
             title: "Progress Dashboard",
+        })));
+    });
+    // Timeline
+    app.get("/timeline", (c) => {
+        const snapshot = getSnapshot();
+        if (!snapshot) {
+            return c.html(renderLayout("<p>Loading model...</p>", {
+                systemName: "MFD Scope",
+                systemVersion: null,
+                activePage: "timeline",
+            }));
+        }
+        const content = renderTimeline(snapshot);
+        return c.html(renderLayout(content, layoutOpts(snapshot, {
+            activePage: "timeline",
+            breadcrumbs: [
+                { label: "System", href: "/" },
+                { label: "Timeline" },
+            ],
+            title: "Timeline",
         })));
     });
     // Level 2: Component detail

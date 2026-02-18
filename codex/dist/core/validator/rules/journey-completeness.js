@@ -1,6 +1,8 @@
 import { collectModel } from "../collect.js";
 /**
  * JOURNEY_INVALID: Checks journey references and structure.
+ * JOURNEY_UNREACHABLE_SCREEN: Screen used as `from` but never as `to` (except entry point).
+ * JOURNEY_DUPLICATE_TRANSITION: Duplicate from->to:trigger transition.
  */
 export function journeyCompleteness(doc) {
     const model = collectModel(doc);
@@ -18,6 +20,10 @@ export function journeyCompleteness(doc) {
                 help: "Add at least one step: ScreenA -> ScreenB : on trigger",
             });
         }
+        // Track transitions for duplicate detection and reachability
+        const transitionKeys = new Set();
+        const toScreens = new Set();
+        const fromScreens = new Set();
         for (const step of steps) {
             // end cannot be origin
             if (step.from === "end") {
@@ -57,6 +63,39 @@ export function journeyCompleteness(doc) {
                     location: step.loc,
                     help: `Declare 'event ${step.trigger} { ... }' or check the name`,
                 });
+            }
+            // Track for reachability and duplicates
+            if (step.from !== "*" && step.from !== "end")
+                fromScreens.add(step.from);
+            if (step.to !== "*" && step.to !== "end")
+                toScreens.add(step.to);
+            // JOURNEY_DUPLICATE_TRANSITION: same from->to:trigger
+            const key = `${step.from}->${step.to}:${step.trigger ?? ""}`;
+            if (transitionKeys.has(key)) {
+                diagnostics.push({
+                    code: "JOURNEY_DUPLICATE_TRANSITION",
+                    severity: "warning",
+                    message: `Journey '${journey.name}' has duplicate transition '${step.from} -> ${step.to}${step.trigger ? ` : on ${step.trigger}` : ""}'`,
+                    location: step.loc,
+                    help: "Remove the duplicate transition",
+                });
+            }
+            transitionKeys.add(key);
+        }
+        // JOURNEY_UNREACHABLE_SCREEN: screen used as from but never reached (not a to)
+        // The first `from` screen is treated as entry point (reachable by default).
+        if (steps.length > 0) {
+            const entryPoint = steps[0].from;
+            for (const screen of fromScreens) {
+                if (screen !== entryPoint && !toScreens.has(screen)) {
+                    diagnostics.push({
+                        code: "JOURNEY_UNREACHABLE_SCREEN",
+                        severity: "warning",
+                        message: `Journey '${journey.name}' screen '${screen}' is used as origin but never reached (not a target of any transition)`,
+                        location: journey.loc,
+                        help: `Add a transition targeting '${screen}' or remove transitions originating from it`,
+                    });
+                }
             }
         }
     }

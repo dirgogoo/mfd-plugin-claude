@@ -1,13 +1,10 @@
 import { collectModel } from "../collect.js";
-/**
- * Normalize a path for comparison: remove trailing slashes.
- */
-function normalizePath(p) {
-    return p.replace(/\/+$/, "") || "/";
-}
+import { normalizePath, baseTypeName, extractPathParams, getEntityFields, resolveApiEndpoints } from "./shared-helpers.js";
 /**
  * ACTION_FROM_UNRESOLVED: from screen not declared.
  * ACTION_CALLS_UNRESOLVED: calls endpoint not found in any API.
+ * ACTION_CALLS_INPUT_MISMATCH: action input type differs from endpoint input type.
+ * ACTION_CALLS_PARAM_MISMATCH: endpoint path has :param but action input type lacks matching field.
  * ACTION_RESULT_SCREEN_UNRESOLVED: result screen not declared.
  * ACTION_ON_STREAM_UNRESOLVED: on STREAM path not found as STREAM endpoint.
  * ACTION_ON_SIGNAL_UNRESOLVED: on Signal references signal not declared.
@@ -19,8 +16,8 @@ export function actionCompleteness(doc) {
     const diagnostics = [];
     const screenNames = new Set(model.screens.map((s) => s.name));
     const signalNames = new Set(model.signals.map((s) => s.name));
-    // Resolve all API endpoints: "METHOD fullPath"
-    const apiEndpoints = new Set();
+    // Resolve all API endpoints: "METHOD fullPath" -> { inputType, returnType }
+    const apiEndpoints = resolveApiEndpoints(model);
     // Collect STREAM endpoint full paths separately
     const streamEndpoints = new Set();
     for (const api of model.apis) {
@@ -29,10 +26,8 @@ export function actionCompleteness(doc) {
             ? String(prefixDeco.params[0].value)
             : "";
         for (const ep of api.endpoints) {
-            const fullPath = normalizePath(prefixVal + ep.path);
-            apiEndpoints.add(`${ep.method} ${fullPath}`);
             if (ep.method === "STREAM") {
-                streamEndpoints.add(fullPath);
+                streamEndpoints.add(normalizePath(prefixVal + ep.path));
             }
         }
     }
@@ -113,10 +108,11 @@ export function actionCompleteness(doc) {
                     });
                 }
             }
-            // ACTION_CALLS_UNRESOLVED
+            // ACTION_CALLS_UNRESOLVED + type checks
             if (item.type === "ActionCallsClause") {
                 const key = `${item.method} ${normalizePath(item.path)}`;
-                if (!apiEndpoints.has(key)) {
+                const epInfo = apiEndpoints.get(key);
+                if (!epInfo) {
                     diagnostics.push({
                         code: "ACTION_CALLS_UNRESOLVED",
                         severity: "warning",
@@ -124,6 +120,40 @@ export function actionCompleteness(doc) {
                         location: item.loc,
                         help: "Declare the endpoint in an 'api' block or check the method/path",
                     });
+                }
+                else {
+                    // ACTION_CALLS_INPUT_MISMATCH
+                    const actionInputName = baseTypeName(action.params[0]);
+                    const epInputName = baseTypeName(epInfo.inputType);
+                    if (actionInputName && epInputName && actionInputName !== epInputName) {
+                        diagnostics.push({
+                            code: "ACTION_CALLS_INPUT_MISMATCH",
+                            severity: "warning",
+                            message: `Action '${action.name}' has input '${actionInputName}' but endpoint '${item.method} ${item.path}' expects '${epInputName}'`,
+                            location: item.loc,
+                            help: "Align the action parameter type with the API endpoint input type, or update the endpoint",
+                        });
+                    }
+                    // ACTION_CALLS_PARAM_MISMATCH
+                    const pathParams = extractPathParams(item.path);
+                    if (pathParams.length > 0 && action.params[0]) {
+                        const inputTypeName = baseTypeName(action.params[0]);
+                        if (inputTypeName) {
+                            const fields = getEntityFields(inputTypeName, model.entities);
+                            if (fields) {
+                                const missing = pathParams.filter((p) => !fields.has(p));
+                                if (missing.length > 0) {
+                                    diagnostics.push({
+                                        code: "ACTION_CALLS_PARAM_MISMATCH",
+                                        severity: "warning",
+                                        message: `Action '${action.name}' calls path with param(s) ':${missing.join("', ':")}' but input type '${inputTypeName}' has no matching field(s)`,
+                                        location: item.loc,
+                                        help: `Add field(s) '${missing.join("', '")}' to '${inputTypeName}' or use a type that includes them`,
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
             // ACTION_ON_STREAM_UNRESOLVED

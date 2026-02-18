@@ -38,7 +38,7 @@ export function diffCommand(file1, file2) {
     console.log(`\nSummary: ${added.length} added, ${removed.length} removed, ${modified.length} modified`);
     process.exit(diffs.length > 0 ? 1 : 0);
 }
-function semanticDiff(doc1, doc2) {
+export function semanticDiff(doc1, doc2) {
     const model1 = collectModel(doc1);
     const model2 = collectModel(doc2);
     const diffs = [];

@@ -6,8 +6,7 @@
   "type": "module",
   "bin": {
     "mfd": "./dist/core/cli/index.js",
-    "mfd-mcp": "./bin/mfd-mcp",
-    "mfd-lsp": "./dist/lsp/server.js"
+    "mfd-mcp": "./bin/mfd-mcp"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
