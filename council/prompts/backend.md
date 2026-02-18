@@ -41,7 +41,16 @@ Voce revisa APENAS qualidade de backend. Nao revise limites de componentes (arqu
 - Ha estados terminais quando apropriado?
 - Transicoes cobrem o happy path E error paths?
 
-### 5. Rules Quality
+### 5. Abstraction Opportunities (Deteccao de Duplicacao em Backend)
+- Ha entidades com campos de auditoria repetidos (created_at, updated_at)? → Sugerir `entity Auditable @interface { created_at: datetime, updated_at: datetime }` + `implements Auditable`
+- Ha entidades com campos identicos de identificacao (id: uuid @unique, slug: string @unique)? → Sugerir `entity BaseEntity @abstract` + `extends`
+- Ha flows com passos repetidos (validate → check_permissions → persist → emit → return)? → Sugerir `flow base_crud @abstract` + `extends` com `override` nos passos que variam
+- Ha operations com mesma assinatura e logica similar? → Consolidar em uma operation generica ou sugerir flow @abstract
+- Ha events com campos base identicos (id, timestamp, actor_id)? → Sugerir `event DomainEvent @abstract` + `extends`
+- Ha enums de status com valores parecidos (active, inactive, archived) repetidos em entidades diferentes? → Avaliar se e o mesmo conceito (compartilhar) ou conceitos distintos (manter separados)
+- **Regra:** 3+ construtos com a mesma estrutura = oportunidade de abstracao. Reportar como ISSUE com DSL_CHANGE concreto.
+
+### 6. Rules Quality
 - Rules tem `when` E `then` clauses?
 - `then` actions referenciam operations/flows existentes?
 - Rules nao duplicam logica ja expressa em flows?

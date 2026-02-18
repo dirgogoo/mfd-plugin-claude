@@ -38,7 +38,16 @@ Voce revisa APENAS questoes de UX e alinhamento API-UI. Nao revise limites de co
 - Screens de lista tem action para STREAM (atualizacao real-time)?
 - Tipos de input das actions sao compativeis com os forms?
 
-### 5. Signal Quality
+### 5. Abstraction Opportunities (Deteccao de Duplicacao em UI)
+- Ha elements com props repetidas (loading: boolean, error: string?, data: Entity)? → Sugerir `element DataContainer @abstract { prop loading: boolean, prop error: string? }` + `extends`
+- Ha elements com forms identicos ou quase identicos? → Sugerir `element BaseForm @abstract` com form compartilhado + `extends`
+- Ha screens com o mesmo padrao de `uses` (header, sidebar, content)? → Sugerir `screen BaseLayout @abstract` + `extends`
+- Ha actions repetidas com mesmo padrao (from Tela, calls METHOD /rota, | sucesso → Destino, | erro → end)? → Identificar o padrao e sugerir refatoracao
+- Ha signals com campos repetidos (timestamp, source)? → Sugerir `signal BaseSignal @abstract` + `extends`
+- Ha elements @interface que definem contratos de props e poderiam ser reutilizados por mais elements?
+- **Regra:** 3+ construtos de UI com a mesma estrutura = oportunidade de abstracao. Reportar como ISSUE com DSL_CHANGE concreto.
+
+### 6. Signal Quality
 - Signals representam eventos client-side (UI)?
 - Events representam eventos server-side (backend)?
 - Nao ha confusao entre signals e events?

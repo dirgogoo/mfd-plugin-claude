@@ -31,7 +31,15 @@ Voce revisa APENAS questoes de arquitetura. Nao revise qualidade de campos, nome
 - @interface define contratos minimos e coesos?
 - Nao ha @abstract + @interface no mesmo construto?
 
-### 5. Communication Patterns (Padroes de Comunicacao)
+### 5. Abstraction Opportunities (Deteccao de Duplicacao Cross-Component)
+- Ha entidades em componentes diferentes com campos repetidos (id, created_at, updated_at, deleted_at)? → Sugerir `entity Base @abstract` em `shared.mfd` + `extends Base`
+- Ha entidades com contrato comum (ex: todas tem `name`, `slug`, `status`)? → Sugerir `entity Nomeavel @interface` em `shared.mfd` + `implements`
+- Ha enums identicos ou quase identicos em componentes diferentes? → Mover para `shared.mfd`
+- Ha events com campos repetidos (id, timestamp, actor_id) em componentes diferentes? → Sugerir `event DomainEvent @abstract` em `shared.mfd` ou `protocolo.mfd` + `extends`
+- Ha flows com sequencia de passos identica (validate → persist → emit → return) em componentes diferentes? → Sugerir `flow crud @abstract` em `shared.mfd` + `extends` com `override`
+- **Regra:** 3+ construtos com a mesma estrutura repetida = oportunidade de abstracao. Reportar como ISSUE com DSL_CHANGE concreto mostrando o @abstract/@interface e os extends/implements.
+
+### 6. Communication Patterns (Padroes de Comunicacao)
 - Componentes se comunicam via events (padrao reativo)?
 - State machines usam events declarados como triggers?
 - Nao ha acoplamento direto entre componentes (um chamando flow do outro)?
