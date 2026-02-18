@@ -13,8 +13,9 @@ ISSUES: (apenas se ISSUES_FOUND)
   - SEVERITY: ERROR | WARNING
     CONSTRUCT: <tipo e nome, ex: entity User, flow create_order>
     COMPONENT: <nome do component>
-    DESCRIPTION: <o que esta errado>
-    SUGGESTION: <como corrigir — especifico e acionavel>
+    PROBLEM: <descricao clara do problema — O QUE esta errado e POR QUE e um problema>
+    IMPACT: <consequencia pratica se nao corrigir — ex: "campos duplicados em 5 entidades aumentam risco de inconsistencia", "endpoint sem @auth expoe dados sensiveis">
+    SOLUTION: <como corrigir — passo a passo especifico e acionavel, ex: "1. Criar entity Base @abstract em shared.mfd com campos id, created_at, updated_at. 2. Alterar User, Order, Product para extends Base. 3. Remover campos duplicados dos filhos.">
     DSL_CHANGE: |
       <o DSL concreto (valido) para substituir/adicionar>
 ```
@@ -28,9 +29,11 @@ SUMMARY: <1-2 frases resumindo sua avaliacao>
 DRIFT: (apenas se DRIFT_FOUND)
   - CONSTRUCT: <tipo e nome, ex: flow create_order>
     FILE: <caminho do arquivo @impl>
+    PROBLEM: <descricao clara da divergencia — o que o modelo espera vs o que o codigo faz>
     EXPECTED: <o que o modelo define>
     FOUND: <o que o codigo implementa>
-    FIX: <como corrigir o codigo para alinhar ao modelo>
+    IMPACT: <consequencia pratica do drift — ex: "campo email nao tem validacao @format(email), aceitando valores invalidos">
+    FIX: <como corrigir o codigo para alinhar ao modelo — passo a passo>
 ```
 
 ## Regras
@@ -42,3 +45,4 @@ DRIFT: (apenas se DRIFT_FOUND)
 5. **Foco na sua perspectiva.** Nao tente cobrir tudo — sua perspectiva tem um escopo definido. Confie nos outros membros do council para cobrir as demais areas.
 6. **APPROVED e o padrao.** So retorne ISSUES_FOUND se houver problemas reais e acionaveis. Nao invente issues para justificar sua existencia.
 7. **Fase implementacao: modelo e fonte de verdade.** Quando ha drift, o CODIGO deve ser corrigido, NUNCA o modelo. Se o codigo diverge intencionalmente, o modelo deve ser atualizado primeiro (fase modelagem).
+8. **Descreva problemas com clareza.** Cada issue deve ter: (a) PROBLEM explicando o que esta errado em linguagem natural, (b) IMPACT explicando a consequencia pratica, (c) SOLUTION com passos concretos para resolver. Nao basta dizer "falta @auth" — explique por que importa e como corrigir.
