@@ -3,7 +3,7 @@ import { collectModel } from "../collect.js";
  * Quality guard rules for modeling best practices:
  *
  * ENTITY_NO_ID: Entity without an `id` field or any @unique field.
- *   Skip: @abstract, @interface entities.
+ *   Skip: @abstract, @interface, and DTO entities (by naming convention).
  *
  * ENTITY_TOO_MANY_FIELDS: Entity with 15+ fields.
  *   Skip: @abstract entities.
@@ -14,14 +14,24 @@ import { collectModel } from "../collect.js";
  * FLOW_TOO_MANY_STEPS: Flow with > 7 FlowStep items.
  *   Skip: @abstract flows.
  */
+const DTO_SUFFIXES = [
+    "Input", "Output", "Dto", "DTO",
+    "Request", "Response",
+    "Params", "Filter", "Args",
+    "Error", "Result", "Payload",
+    "Config", "Options", "Settings",
+];
+function isDto(name) {
+    return DTO_SUFFIXES.some((s) => name.endsWith(s));
+}
 export function qualityGuards(doc) {
     const model = collectModel(doc);
     const diagnostics = [];
     for (const entity of model.entities) {
         const isAbstract = entity.decorators.some((d) => d.name === "abstract");
         const isInterface = entity.decorators.some((d) => d.name === "interface");
-        // ENTITY_NO_ID: skip @abstract and @interface
-        if (!isAbstract && !isInterface) {
+        // ENTITY_NO_ID: skip @abstract, @interface, and DTOs
+        if (!isAbstract && !isInterface && !isDto(entity.name)) {
             const hasId = entity.fields.some((f) => f.name === "id");
             const hasUnique = entity.fields.some((f) => f.decorators.some((d) => d.name === "unique"));
             if (!hasId && !hasUnique) {
@@ -30,7 +40,7 @@ export function qualityGuards(doc) {
                     severity: "warning",
                     message: `Entity '${entity.name}' has no identification field (id or @unique)`,
                     location: entity.loc,
-                    help: "Add an 'id' field or mark a field with @unique",
+                    help: `Add an 'id' field or mark a field with @unique. If this is a DTO, use a name ending with: ${DTO_SUFFIXES.join(", ")}`,
                 });
             }
         }
