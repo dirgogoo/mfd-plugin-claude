@@ -13,7 +13,7 @@ const KNOWN_DECORATORS = {
     domain: { params: "identifier" },
     // Implementation
     impl: { params: "path_list" },
-    tests: { params: "string" },
+    tests: { params: "path_list" },
     // API
     rate_limit: { params: "rate" },
     cache: { params: "duration" },
@@ -44,6 +44,8 @@ const VALID_STATUS = new Set(["modeling", "implementing", "production", "depreca
     "implemented", "in_progress", "pending", "verified"]);
 /** Deprecated @impl label values — replaced by file paths */
 const DEPRECATED_IMPL_VALUES = new Set(["done", "backend", "frontend", "partial"]);
+/** Deprecated @tests label values — replaced by file paths */
+const DEPRECATED_TESTS_VALUES = new Set(["unit", "integration", "e2e", "contract", "done", "pending"]);
 /** All known decorator names for "did you mean?" suggestions */
 const ALL_DECORATOR_NAMES = Object.keys(KNOWN_DECORATORS);
 /** Human-readable descriptions for decorator parameter types */
@@ -166,6 +168,31 @@ export function decoratorValidation(doc) {
                         message: `@impl('${val}') should be a file path`,
                         location: deco.loc,
                         help: `Use a relative path like @impl(src/path/to/file.ts)`,
+                    });
+                }
+            }
+        }
+        // Validate @tests values — file paths expected, deprecated labels warned
+        if (deco.name === "tests" && deco.params.length > 0) {
+            for (const param of deco.params) {
+                const val = param.kind === "string" ? param.value : param.kind === "identifier" ? param.value : null;
+                if (val && DEPRECATED_TESTS_VALUES.has(val)) {
+                    diagnostics.push({
+                        code: "TESTS_DEPRECATED_VALUE",
+                        severity: "warning",
+                        message: `@tests('${val}') is deprecated. Use file paths instead: @tests(tests/path/to/file.test.ts)`,
+                        location: deco.loc,
+                        help: `Replace with the path to the test file, e.g. @tests(tests/services/file.test.ts)`,
+                    });
+                }
+                // Identifiers that aren't deprecated values and don't look like paths = likely error
+                if (val && param.kind === "identifier" && !DEPRECATED_TESTS_VALUES.has(val) && !val.includes("/")) {
+                    diagnostics.push({
+                        code: "TESTS_INVALID_VALUE",
+                        severity: "warning",
+                        message: `@tests('${val}') should be a file path`,
+                        location: deco.loc,
+                        help: `Use a relative path like @tests(tests/path/to/file.test.ts)`,
                     });
                 }
             }

@@ -148,6 +148,10 @@ export interface ScreenContract {
     implements: string[];
     abstract: boolean;
     interface: boolean;
+    uses: Array<{
+        element: string;
+        alias: string;
+    }>;
     forms: Array<{
         name: string | null;
         fields: FieldContract[];

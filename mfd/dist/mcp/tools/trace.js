@@ -8,7 +8,10 @@ import { loadDocument } from "./common.js";
  */
 export function handleTrace(args) {
     if (args.mark) {
-        return handleMark(args);
+        return handleMarkDecorator(args.file, args.mark.construct, args.mark.paths, "impl");
+    }
+    if (args.markTests) {
+        return handleMarkDecorator(args.file, args.markTests.construct, args.markTests.paths, "tests");
     }
     return handleRead(args);
 }
@@ -63,16 +66,28 @@ function handleRead(args) {
                         implPaths.push(val);
                 }
             }
-            const testsValue = testsDeco?.params?.[0]
-                ? String(testsDeco.params[0].value)
-                : null;
-            // Check if files exist
+            const testsPaths = [];
+            if (testsDeco) {
+                for (const p of testsDeco.params) {
+                    const val = p.kind === "string" || p.kind === "identifier" ? String(p.value) : null;
+                    if (val)
+                        testsPaths.push(val);
+                }
+            }
+            // Check if files exist (both @impl and @tests paths)
             const fileStatus = {};
             for (const p of implPaths) {
                 const fullPath = resolve(projectRoot, p);
                 fileStatus[p] = existsSync(fullPath);
             }
-            entries.push({ type, name, component, impl: implPaths, tests: testsValue, fileStatus });
+            for (const p of testsPaths) {
+                // Only check paths that look like file paths (contain /)
+                if (p.includes("/")) {
+                    const fullPath = resolve(projectRoot, p);
+                    fileStatus[p] = existsSync(fullPath);
+                }
+            }
+            entries.push({ type, name, component, impl: implPaths, tests: testsPaths, fileStatus });
         }
     }
     // Also check APIs
@@ -94,20 +109,31 @@ function handleRead(args) {
                     implPaths.push(val);
             }
         }
-        const testsValue = testsDeco?.params?.[0]
-            ? String(testsDeco.params[0].value)
-            : null;
+        const testsPaths = [];
+        if (testsDeco) {
+            for (const p of testsDeco.params) {
+                const val = p.kind === "string" || p.kind === "identifier" ? String(p.value) : null;
+                if (val)
+                    testsPaths.push(val);
+            }
+        }
         const fileStatus = {};
         for (const p of implPaths) {
             const fullPath = resolve(projectRoot, p);
             fileStatus[p] = existsSync(fullPath);
         }
-        entries.push({ type: "api", name, component, impl: implPaths, tests: testsValue, fileStatus });
+        for (const p of testsPaths) {
+            if (p.includes("/")) {
+                const fullPath = resolve(projectRoot, p);
+                fileStatus[p] = existsSync(fullPath);
+            }
+        }
+        entries.push({ type: "api", name, component, impl: implPaths, tests: testsPaths, fileStatus });
     }
     const total = entries.length;
     const implemented = entries.filter(e => e.impl.length > 0).length;
     const pending = total - implemented;
-    const tested = entries.filter(e => e.tests !== null).length;
+    const tested = entries.filter(e => e.tests.length > 0).length;
     const missingFiles = entries.reduce((count, e) => {
         return count + Object.values(e.fileStatus).filter(v => !v).length;
     }, 0);
@@ -126,14 +152,11 @@ function handleRead(args) {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
 }
-function handleMark(args) {
-    const mark = args.mark;
-    const absPath = resolve(args.file);
+function handleMarkDecorator(file, constructName, paths, decorator) {
+    const absPath = resolve(file);
     const source = readFileSync(absPath, "utf-8");
     const lines = source.split("\n");
-    const constructName = mark.construct;
-    const paths = mark.paths;
-    const implValue = paths.join(", ");
+    const pathValue = paths.join(", ");
     // Find the line that declares this construct
     // Pattern: "entity Name", "flow name", etc. — with possible decorators
     const declRegex = new RegExp(`^(\\s*)(entity|flow|screen|enum|state|event|signal|operation|action|element|rule|journey|api)\\s+${escapeRegex(constructName)}\\b`);
@@ -148,28 +171,28 @@ function handleMark(args) {
         return {
             content: [{
                     type: "text",
-                    text: `Could not find construct "${constructName}" in ${args.file}`,
+                    text: `Could not find construct "${constructName}" in ${file}`,
                 }],
             isError: true,
         };
     }
     const line = lines[targetLineIdx];
-    // Check if @impl already exists on this line
-    const implRegex = /@impl\([^)]*\)/;
-    if (implRegex.test(line)) {
-        // Replace existing @impl
-        lines[targetLineIdx] = line.replace(implRegex, `@impl(${implValue})`);
+    // Check if @decorator already exists on this line
+    const decoRegex = new RegExp(`@${decorator}\\([^)]*\\)`);
+    if (decoRegex.test(line)) {
+        // Replace existing decorator
+        lines[targetLineIdx] = line.replace(decoRegex, `@${decorator}(${pathValue})`);
     }
     else {
-        // Insert @impl before the opening brace or at end of declaration
+        // Insert decorator before the opening brace or at end of declaration
         const braceIdx = line.indexOf("{");
         if (braceIdx >= 0) {
             lines[targetLineIdx] =
-                line.substring(0, braceIdx).trimEnd() + ` @impl(${implValue}) ` + line.substring(braceIdx);
+                line.substring(0, braceIdx).trimEnd() + ` @${decorator}(${pathValue}) ` + line.substring(braceIdx);
         }
         else {
-            // No brace on this line — append @impl at end
-            lines[targetLineIdx] = line.trimEnd() + ` @impl(${implValue})`;
+            // No brace on this line — append decorator at end
+            lines[targetLineIdx] = line.trimEnd() + ` @${decorator}(${pathValue})`;
         }
     }
     writeFileSync(absPath, lines.join("\n"), "utf-8");
@@ -179,8 +202,8 @@ function handleMark(args) {
                 text: JSON.stringify({
                     success: true,
                     construct: constructName,
-                    impl: paths,
-                    file: args.file,
+                    [decorator]: paths,
+                    file,
                     line: targetLineIdx + 1,
                 }, null, 2),
             }],

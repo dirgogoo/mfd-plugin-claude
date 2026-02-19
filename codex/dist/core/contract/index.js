@@ -349,8 +349,12 @@ function contractRule(r) {
     };
 }
 function contractScreen(s) {
+    const uses = [];
     const forms = [];
     for (const item of s.body) {
+        if (item.type === "UsesDecl") {
+            uses.push({ element: item.element, alias: item.alias });
+        }
         if (item.type === "FormDecl") {
             forms.push({
                 name: item.name,
@@ -368,6 +372,7 @@ function contractScreen(s) {
         implements: s.implements,
         abstract: hasDecorator(s.decorators, "abstract"),
         interface: hasDecorator(s.decorators, "interface"),
+        uses,
         forms,
         decorators: serializeDecorators(s.decorators),
     };

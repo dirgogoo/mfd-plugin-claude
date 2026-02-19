@@ -8,6 +8,10 @@ interface TraceArgs {
         construct: string;
         paths: string[];
     };
+    markTests?: {
+        construct: string;
+        paths: string[];
+    };
 }
 /**
  * Traceability tool: reads @impl/@tests decorators and verifies file existence.

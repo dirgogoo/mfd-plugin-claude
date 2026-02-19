@@ -1,0 +1,1 @@
+{"version":3,"file":"test-contract.d.ts","sourceRoot":"","sources":["../../../src/mcp/tools/test-contract.ts"],"names":[],"mappings":"AAQA,OAAO,EAAgB,KAAK,YAAY,EAAE,MAAM,aAAa,CAAC;AAyD9D,wBAAgB,kBAAkB,CAAC,IAAI,EAAE;IACvC,IAAI,EAAE,MAAM,CAAC;IACb,KAAK,CAAC,EAAE,MAAM,CAAC;IACf,SAAS,CAAC,EAAE,MAAM,CAAC;IACnB,gBAAgB,CAAC,EAAE,OAAO,CAAC;CAC5B,GAAG,YAAY,CAwCf"}

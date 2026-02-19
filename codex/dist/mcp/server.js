@@ -8,7 +8,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
+import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleTestContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
 import { handleListResources, handleReadResource, } from "./resources/index.js";
 const server = new Server({
     name: "mfd-tools",
@@ -129,6 +129,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                         type: "boolean",
                         description: "Compact mode: omit redundant inherited fields/steps/props when resolvedFields/resolvedSteps/resolvedProps are present (default: false)",
                         default: false,
+                    },
+                    resolve_includes: {
+                        type: "boolean",
+                        description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                },
+                required: ["file"],
+            },
+        },
+        {
+            name: "mfd_test_contract",
+            description: "Generate a test contract from an MFD model. The contract is a JSON specification optimized for LLMs to generate tests. Extracts journeys as E2E tests, flows as integration tests, operations as unit tests, APIs as contract tests, screens as page objects, and state machines as transition test matrices.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file: {
+                        type: "string",
+                        description: "Path to the .mfd file to generate test contract from",
+                    },
+                    level: {
+                        type: "string",
+                        enum: ["e2e", "integration", "unit", "contract", "all"],
+                        description: "Test level to generate: e2e (journeys), integration (flows), unit (operations), contract (APIs), or all (default: all)",
+                    },
+                    component: {
+                        type: "string",
+                        description: "Filter by component name (e.g., 'Frontend', 'Auth')",
                     },
                     resolve_includes: {
                         type: "boolean",
@@ -304,13 +332,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                         },
                         required: ["construct", "paths"],
                     },
+                    markTests: {
+                        type: "object",
+                        description: "Write mode: add/update @tests on a construct",
+                        properties: {
+                            construct: {
+                                type: "string",
+                                description: "Name of the construct to mark (e.g., 'User')",
+                            },
+                            paths: {
+                                type: "array",
+                                items: { type: "string" },
+                                description: "File paths for @tests (e.g., ['tests/models/user.test.ts'])",
+                            },
+                        },
+                        required: ["construct", "paths"],
+                    },
                 },
                 required: ["file"],
             },
         },
         {
             name: "mfd_prompt",
-            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao, arquitetura, boas-praticas, brownfield.",
+            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao, arquitetura, boas-praticas, brownfield, testes.",
             inputSchema: {
                 type: "object",
                 properties: {
@@ -418,6 +462,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request, _extra) => {
                 return handleRender(args);
             case "mfd_contract":
                 return handleContract(args);
+            case "mfd_test_contract":
+                return handleTestContract(args);
             case "mfd_query":
                 return handleQuery(args);
             case "mfd_context":
