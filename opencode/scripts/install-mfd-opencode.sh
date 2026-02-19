@@ -4,22 +4,29 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOCAL_BIN="${HOME}/.local/bin"
+OPENCODE_CONFIG="${HOME}/.config/opencode"
 
 usage() {
   cat <<'USAGE'
 Usage: install-mfd-opencode.sh [options]
 
 Instala a toolchain MFD para o ambiente OpenCode.
+Instala globalmente em ~/.config/opencode/ (config padrao do OpenCode).
+
+Componentes:
+  - MCP server mfd-tools (11 tools)
+  - 9 skills (mfd-model, mfd-explore, mfd-validate, etc.)
+  - 2 custom commands (/mfd-cycle, /mfd-quick-validate)
+  - 2 custom agents (mfd-modeler, mfd-reviewer)
 
 Options:
   --bin-dir PATH   Diretorio dos binarios (padrao: ~/.local/bin)
   --force          Recria links e sobrescreve tudo mesmo se ja existirem
   --no-deps        Pula instalacao de dependencias npm
   --no-mcp         Pula configuracao do MCP server no opencode.json
-  --no-skills      Pula instalacao das skills em .opencode/skills/
-  --no-plugins     Pula instalacao do plugin TypeScript em .opencode/plugins/
-  --no-commands    Pula instalacao dos custom commands em .opencode/commands/
-  --no-agents      Pula instalacao dos custom agents em .opencode/agents/
+  --no-skills      Pula instalacao das skills em ~/.config/opencode/skills/
+  --no-commands    Pula instalacao dos custom commands em ~/.config/opencode/command/
+  --no-agents      Pula instalacao dos custom agents em ~/.config/opencode/agent/
   --help           Exibe esta mensagem
 USAGE
 }
@@ -28,7 +35,6 @@ FORCE=false
 SKIP_DEPS=false
 SKIP_MCP=false
 SKIP_SKILLS=false
-SKIP_PLUGINS=false
 SKIP_COMMANDS=false
 SKIP_AGENTS=false
 
@@ -45,9 +51,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-skills)
       SKIP_SKILLS=true
-      ;;
-    --no-plugins)
-      SKIP_PLUGINS=true
       ;;
     --no-commands)
       SKIP_COMMANDS=true
@@ -95,21 +98,36 @@ if [[ ! -d "$PLUGIN_DIR/dist" ]]; then
   exit 1
 fi
 
+if [[ ! -d "$OPENCODE_CONFIG" ]]; then
+  echo "Erro: diretorio de configuracao do OpenCode nao encontrado em $OPENCODE_CONFIG." >&2
+  echo "Instale e execute o OpenCode ao menos uma vez antes de instalar o MFD." >&2
+  exit 1
+fi
+
+echo "=== MFD para OpenCode — Instalacao ==="
+echo "Plugin source: $PLUGIN_DIR"
+echo "OpenCode config: $OPENCODE_CONFIG"
+echo ""
+
 # --- Dependencies ---
 
 if [[ "$SKIP_DEPS" == false ]]; then
   if [[ -f "$PLUGIN_DIR/package.json" ]]; then
-    if [[ ! -d "$PLUGIN_DIR/node_modules" ]]; then
-      echo "Instalando dependencias do MFD (apenas production)..."
+    if [[ ! -d "$PLUGIN_DIR/node_modules" ]] || [[ "$FORCE" == true ]]; then
+      echo "[1/6] Instalando dependencias do MFD (apenas production)..."
       npm install --omit=dev --prefix "$PLUGIN_DIR" --silent
     else
-      echo "Dependencias ja instaladas."
+      echo "[1/6] Dependencias ja instaladas."
     fi
   fi
+else
+  echo "[1/6] Dependencias: pulado (--no-deps)."
 fi
 
 # --- Symlinks ---
 
+echo ""
+echo "[2/6] Criando symlinks em $LOCAL_BIN/..."
 mkdir -p "$LOCAL_BIN"
 
 LINKS=(
@@ -122,35 +140,32 @@ for entry in "${LINKS[@]}"; do
   target="${entry#*:}"
 
   if [[ ! -f "$target" ]]; then
-    echo "Aviso: $target nao encontrado. Pulando $name."
+    echo "  Aviso: $target nao encontrado. Pulando $name."
     continue
   fi
 
   if [[ -e "$LOCAL_BIN/$name" ]] && [[ "$FORCE" != true ]]; then
-    echo "Ja existe: $LOCAL_BIN/$name (use --force para substituir)."
+    echo "  $name: ja existe (use --force para substituir)."
     continue
   fi
 
   ln -sf "$target" "$LOCAL_BIN/$name"
   chmod +x "$target"
-  echo "Criado: $LOCAL_BIN/$name -> $target"
+  echo "  $name -> $target"
 done
 
-# --- MCP Registration (opencode.json) ---
+# --- MCP Registration (opencode.json global) ---
 
+echo ""
 if [[ "$SKIP_MCP" == false ]]; then
-  OPENCODE_JSON="opencode.json"
+  OPENCODE_JSON="$OPENCODE_CONFIG/opencode.json"
   MCP_SERVER_PATH="$PLUGIN_DIR/bin/mfd-mcp"
 
   if [[ -f "$OPENCODE_JSON" ]]; then
-    # Check if mfd-tools already configured
     if grep -q "mfd-tools" "$OPENCODE_JSON" 2>/dev/null && [[ "$FORCE" != true ]]; then
-      echo ""
-      echo "MCP server 'mfd-tools' ja configurado em $OPENCODE_JSON (use --force para sobrescrever)."
+      echo "[3/6] MCP server 'mfd-tools' ja configurado (use --force para sobrescrever)."
     else
-      echo ""
-      echo "Adicionando MCP server ao $OPENCODE_JSON..."
-      # Use node to merge JSON safely
+      echo "[3/6] Adicionando MCP server ao $OPENCODE_JSON..."
       node -e "
         const fs = require('fs');
         const config = JSON.parse(fs.readFileSync('$OPENCODE_JSON', 'utf-8'));
@@ -162,13 +177,13 @@ if [[ "$SKIP_MCP" == false ]]; then
         };
         fs.writeFileSync('$OPENCODE_JSON', JSON.stringify(config, null, 2) + '\n');
       "
-      echo "MCP server 'mfd-tools' registrado em $OPENCODE_JSON."
+      echo "  MCP server 'mfd-tools' registrado."
     fi
   else
-    echo ""
-    echo "Criando $OPENCODE_JSON com MCP server..."
+    echo "[3/6] Criando $OPENCODE_JSON com MCP server..."
     cat > "$OPENCODE_JSON" <<EOCONFIG
 {
+  "\$schema": "https://opencode.ai/config.json",
   "mcp": {
     "mfd-tools": {
       "type": "local",
@@ -178,115 +193,66 @@ if [[ "$SKIP_MCP" == false ]]; then
   }
 }
 EOCONFIG
-    echo "Criado: $OPENCODE_JSON"
+    echo "  Criado: $OPENCODE_JSON"
   fi
+else
+  echo "[3/6] MCP: pulado (--no-mcp)."
 fi
 
-# --- OPENCODE.md ---
+# --- Skills (~/.config/opencode/skills/<name>/SKILL.md) ---
 
-if [[ -f "$PLUGIN_DIR/OPENCODE.md" ]]; then
-  OPENCODE_DEST="OPENCODE.md"
-  if [[ -f "$OPENCODE_DEST" ]] && [[ "$FORCE" != true ]]; then
-    echo ""
-    echo "OPENCODE.md ja existe (use --force para sobrescrever)."
-  else
-    cp "$PLUGIN_DIR/OPENCODE.md" "$OPENCODE_DEST"
-    echo ""
-    echo "Copiado: OPENCODE.md -> $OPENCODE_DEST"
-  fi
-fi
-
-# --- Skills (.opencode/skills/) ---
-
+echo ""
 if [[ "$SKIP_SKILLS" == false ]]; then
   SKILLS_SRC="$PLUGIN_DIR/skills"
-  SKILLS_DEST=".opencode/skills"
+  SKILLS_DEST="$OPENCODE_CONFIG/skills"
 
   if [[ -d "$SKILLS_SRC" ]]; then
-    echo ""
-    echo "Instalando skills em $SKILLS_DEST/..."
+    echo "[4/6] Instalando skills em $SKILLS_DEST/..."
     mkdir -p "$SKILLS_DEST"
 
     INSTALLED=0
     for skill_dir in "$SKILLS_SRC"/*/; do
       [[ -d "$skill_dir" ]] || continue
       skill_name="$(basename "$skill_dir")"
-      dest="$SKILLS_DEST/$skill_name"
+      skill_file="$skill_dir/SKILL.md"
 
-      if [[ -d "$dest" ]] && [[ "$FORCE" != true ]]; then
+      [[ -f "$skill_file" ]] || continue
+
+      dest_dir="$SKILLS_DEST/$skill_name"
+
+      if [[ -d "$dest_dir" ]] && [[ "$FORCE" != true ]]; then
         echo "  $skill_name: ja existe (use --force para sobrescrever)"
         continue
       fi
 
-      rm -rf "$dest"
-      cp -r "$skill_dir" "$dest"
+      # Copy entire skill directory (SKILL.md + any supporting files)
+      rm -rf "$dest_dir"
+      cp -r "$skill_dir" "$dest_dir"
       echo "  $skill_name: instalado"
       INSTALLED=$((INSTALLED + 1))
     done
 
-    echo "Skills instaladas: $INSTALLED novas."
+    echo "  Total: $INSTALLED skills instaladas."
   else
-    echo ""
-    echo "Aviso: diretorio de skills nao encontrado em $SKILLS_SRC"
+    echo "[4/6] Aviso: diretorio de skills nao encontrado em $SKILLS_SRC"
   fi
+else
+  echo "[4/6] Skills: pulado (--no-skills)."
 fi
 
-# --- Plugin (.opencode/plugins/) ---
+# --- Custom commands (~/.config/opencode/command/<name>.md) ---
 
-if [[ "$SKIP_PLUGINS" == false ]]; then
-  PLUGINS_SRC="$PLUGIN_DIR/plugins"
-  PLUGINS_DEST=".opencode/plugins"
-
-  if [[ -d "$PLUGINS_SRC" ]]; then
-    echo ""
-    echo "Instalando plugins em $PLUGINS_DEST/..."
-    mkdir -p "$PLUGINS_DEST"
-
-    for plugin_file in "$PLUGINS_SRC"/*.ts; do
-      [[ -f "$plugin_file" ]] || continue
-      plugin_name="$(basename "$plugin_file")"
-      dest="$PLUGINS_DEST/$plugin_name"
-
-      if [[ -f "$dest" ]] && [[ "$FORCE" != true ]]; then
-        echo "  $plugin_name: ja existe (use --force para sobrescrever)"
-        continue
-      fi
-
-      cp "$plugin_file" "$dest"
-      echo "  $plugin_name: instalado"
-    done
-  else
-    echo ""
-    echo "Aviso: diretorio de plugins nao encontrado em $PLUGINS_SRC"
-  fi
-
-  # Create .opencode/package.json with plugin dependency if not exists
-  OPENCODE_PKG=".opencode/package.json"
-  if [[ ! -f "$OPENCODE_PKG" ]] || [[ "$FORCE" == true ]]; then
-    cat > "$OPENCODE_PKG" <<'EOPKG'
-{
-  "name": "opencode-mfd-plugins",
-  "private": true,
-  "type": "module",
-  "dependencies": {}
-}
-EOPKG
-    echo "  package.json: criado em .opencode/"
-  fi
-fi
-
-# --- Commands (.opencode/commands/) ---
-
+echo ""
 if [[ "$SKIP_COMMANDS" == false ]]; then
-  COMMANDS_SRC="$PLUGIN_DIR/commands"
-  COMMANDS_DEST=".opencode/commands"
+  CMDS_SRC="$PLUGIN_DIR/commands"
+  COMMANDS_DEST="$OPENCODE_CONFIG/command"
 
-  if [[ -d "$COMMANDS_SRC" ]]; then
-    echo ""
-    echo "Instalando commands em $COMMANDS_DEST/..."
+  if [[ -d "$CMDS_SRC" ]]; then
+    echo "[5/6] Instalando custom commands em $COMMANDS_DEST/..."
     mkdir -p "$COMMANDS_DEST"
 
-    for cmd_file in "$COMMANDS_SRC"/*.md; do
+    INSTALLED=0
+    for cmd_file in "$CMDS_SRC"/*.md; do
       [[ -f "$cmd_file" ]] || continue
       cmd_name="$(basename "$cmd_file")"
       dest="$COMMANDS_DEST/$cmd_name"
@@ -298,24 +264,29 @@ if [[ "$SKIP_COMMANDS" == false ]]; then
 
       cp "$cmd_file" "$dest"
       echo "  $cmd_name: instalado"
+      INSTALLED=$((INSTALLED + 1))
     done
+
+    echo "  Total: $INSTALLED commands instalados."
   else
-    echo ""
-    echo "Aviso: diretorio de commands nao encontrado em $COMMANDS_SRC"
+    echo "[5/6] Aviso: diretorio de commands nao encontrado em $CMDS_SRC"
   fi
+else
+  echo "[5/6] Commands: pulado (--no-commands)."
 fi
 
-# --- Agents (.opencode/agents/) ---
+# --- Agents (~/.config/opencode/agent/<name>.md) ---
 
+echo ""
 if [[ "$SKIP_AGENTS" == false ]]; then
   AGENTS_SRC="$PLUGIN_DIR/agents"
-  AGENTS_DEST=".opencode/agents"
+  AGENTS_DEST="$OPENCODE_CONFIG/agent"
 
   if [[ -d "$AGENTS_SRC" ]]; then
-    echo ""
-    echo "Instalando agents em $AGENTS_DEST/..."
+    echo "[6/6] Instalando agents em $AGENTS_DEST/..."
     mkdir -p "$AGENTS_DEST"
 
+    INSTALLED=0
     for agent_file in "$AGENTS_SRC"/*.md; do
       [[ -f "$agent_file" ]] || continue
       agent_name="$(basename "$agent_file")"
@@ -328,11 +299,15 @@ if [[ "$SKIP_AGENTS" == false ]]; then
 
       cp "$agent_file" "$dest"
       echo "  $agent_name: instalado"
+      INSTALLED=$((INSTALLED + 1))
     done
+
+    echo "  Total: $INSTALLED agents instalados."
   else
-    echo ""
-    echo "Aviso: diretorio de agents nao encontrado em $AGENTS_SRC"
+    echo "[6/6] Aviso: diretorio de agents nao encontrado em $AGENTS_SRC"
   fi
+else
+  echo "[6/6] Agents: pulado (--no-agents)."
 fi
 
 # --- PATH check ---
@@ -347,13 +322,14 @@ fi
 
 # --- Verification ---
 
-echo "Verificando instalacao..."
+echo "=== Verificacao ==="
+
 ERRORS=0
 
 if command -v mfd >/dev/null 2>&1; then
-  echo "  mfd: OK"
+  echo "  mfd CLI: OK"
 else
-  echo "  mfd: NAO ENCONTRADO (verifique o PATH)"
+  echo "  mfd CLI: NAO ENCONTRADO (verifique o PATH)"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -364,42 +340,50 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# Count installed components
-SKILLS_CHECK=".opencode/skills"
-if [[ -d "$SKILLS_CHECK" ]]; then
-  SKILL_COUNT=$(find "$SKILLS_CHECK" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
-  echo "  skills: $SKILL_COUNT em $SKILLS_CHECK/"
+# Check MCP config
+if [[ -f "$OPENCODE_CONFIG/opencode.json" ]] && grep -q "mfd-tools" "$OPENCODE_CONFIG/opencode.json" 2>/dev/null; then
+  echo "  MCP config: OK (mfd-tools em opencode.json)"
 else
-  echo "  skills: nenhuma instalada"
+  echo "  MCP config: NAO CONFIGURADO"
+  ERRORS=$((ERRORS + 1))
 fi
 
-PLUGINS_CHECK=".opencode/plugins"
-if [[ -d "$PLUGINS_CHECK" ]]; then
-  PLUGIN_COUNT=$(find "$PLUGINS_CHECK" -maxdepth 1 -name "*.ts" 2>/dev/null | wc -l)
-  echo "  plugins: $PLUGIN_COUNT em $PLUGINS_CHECK/"
-else
-  echo "  plugins: nenhum instalado"
-fi
+# Count installed skills
+SKILL_COUNT=0
+for d in "$OPENCODE_CONFIG/skills"/*/; do
+  [[ -f "${d}SKILL.md" ]] && SKILL_COUNT=$((SKILL_COUNT + 1))
+done
+echo "  Skills: $SKILL_COUNT em $OPENCODE_CONFIG/skills/"
 
-COMMANDS_CHECK=".opencode/commands"
-if [[ -d "$COMMANDS_CHECK" ]]; then
-  CMD_COUNT=$(find "$COMMANDS_CHECK" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l)
-  echo "  commands: $CMD_COUNT em $COMMANDS_CHECK/"
-else
-  echo "  commands: nenhum instalado"
-fi
+# Count MFD commands
+MFD_CMD_COUNT=0
+for f in "$OPENCODE_CONFIG/command"/mfd-*.md; do
+  [[ -f "$f" ]] && MFD_CMD_COUNT=$((MFD_CMD_COUNT + 1))
+done
+echo "  Commands MFD: $MFD_CMD_COUNT em $OPENCODE_CONFIG/command/"
 
-AGENTS_CHECK=".opencode/agents"
-if [[ -d "$AGENTS_CHECK" ]]; then
-  AGENT_COUNT=$(find "$AGENTS_CHECK" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l)
-  echo "  agents: $AGENT_COUNT em $AGENTS_CHECK/"
-else
-  echo "  agents: nenhum instalado"
-fi
+# Count MFD agents
+MFD_AGENT_COUNT=0
+for f in "$OPENCODE_CONFIG/agent"/mfd-*.md; do
+  [[ -f "$f" ]] && MFD_AGENT_COUNT=$((MFD_AGENT_COUNT + 1))
+done
+echo "  Agents MFD: $MFD_AGENT_COUNT em $OPENCODE_CONFIG/agent/"
 
 echo ""
 if [[ "$ERRORS" -eq 0 ]]; then
-  echo "Instalacao do MFD para OpenCode concluida com sucesso."
+  echo "Instalacao do MFD para OpenCode concluida com sucesso!"
+  echo ""
+  echo "Skills disponiveis (carregadas automaticamente pelo agente):"
+  echo "  mfd-model, mfd-explore, mfd-validate, mfd-implement,"
+  echo "  mfd-brownfield, mfd-status, mfd-test, mfd-install, council"
+  echo ""
+  echo "Slash commands:"
+  echo "  /mfd-cycle            Ciclo completo de desenvolvimento"
+  echo "  /mfd-quick-validate   Validacao rapida + stats"
+  echo ""
+  echo "MCP tools (11): mfd_parse, mfd_validate, mfd_render, mfd_query,"
+  echo "  mfd_contract, mfd_context, mfd_stats, mfd_diff, mfd_trace,"
+  echo "  mfd_prompt, mfd_visual_start"
 else
-  echo "Instalacao concluida com $ERRORS aviso(s). Verifique o PATH."
+  echo "Instalacao concluida com $ERRORS aviso(s). Verifique acima."
 fi

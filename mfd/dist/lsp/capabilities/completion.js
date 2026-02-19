@@ -34,7 +34,7 @@ export function getCompletions(params, docManager) {
             });
         }
         // Model types (entities + enums)
-        const knownTypes = docManager.getKnownTypes(textDocument.uri);
+        const knownTypes = docManager.getMergedKnownTypes(textDocument.uri);
         for (const t of knownTypes) {
             if (PRIMITIVE_TYPES.includes(t))
                 continue; // skip dupes
@@ -113,7 +113,7 @@ export function getCompletions(params, docManager) {
             });
         }
         // Named references
-        const knownNames = docManager.getKnownNames(textDocument.uri);
+        const knownNames = docManager.getMergedKnownNames(textDocument.uri);
         for (const name of knownNames) {
             items.push({
                 label: name,

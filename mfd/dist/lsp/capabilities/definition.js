@@ -102,11 +102,20 @@ export function getDefinition(params, docManager) {
                 };
             }
         }
+        // Phase 2: cross-file search for JourneyStep
+        for (const stepTarget of [step.from, step.to]) {
+            if (stepTarget) {
+                const crossFile = docManager.findCrossFileDefinition(params.textDocument.uri, stepTarget);
+                if (crossFile) {
+                    return { uri: crossFile.uri, range: toRange(crossFile.node.loc) };
+                }
+            }
+        }
         return null;
     }
     if (!targetName)
         return null;
-    // Find the declaration of the target name
+    // Phase 1: find the declaration in the current file
     const namedNodes = collectNamedNodes(entry.doc);
     for (const { name, node: n } of namedNodes) {
         if (name === targetName) {
@@ -115,6 +124,11 @@ export function getDefinition(params, docManager) {
                 range: toRange(n.loc),
             };
         }
+    }
+    // Phase 2: cross-file search
+    const crossFile = docManager.findCrossFileDefinition(params.textDocument.uri, targetName);
+    if (crossFile) {
+        return { uri: crossFile.uri, range: toRange(crossFile.node.loc) };
     }
     return null;
 }

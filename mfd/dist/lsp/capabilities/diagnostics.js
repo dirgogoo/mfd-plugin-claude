@@ -1,5 +1,6 @@
 import { DiagnosticSeverity } from "vscode-languageserver/node.js";
 import { validate } from "../../core/validator/index.js";
+import { WorkspaceManager } from "../workspace-manager.js";
 import { toRange } from "../utils/position.js";
 export function setupDiagnostics(connection, docManager) {
     // Trigger diagnostics on document change
@@ -17,6 +18,23 @@ export function sendDiagnostics(connection, docManager, uri) {
     if (!entry)
         return;
     const diagnostics = [];
+    // Resolver errors (import not found, circular includes)
+    const filePath = WorkspaceManager.uriToPath(uri);
+    const resolvedEntry = filePath ? docManager.workspace.getEntryFor(filePath) : null;
+    if (resolvedEntry) {
+        for (const re of resolvedEntry.result.errors) {
+            if (re.type === "FILE_NOT_FOUND" || re.type === "CIRCULAR_INCLUDE") {
+                diagnostics.push({
+                    severity: re.type === "FILE_NOT_FOUND"
+                        ? DiagnosticSeverity.Error
+                        : DiagnosticSeverity.Warning,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+                    message: re.message,
+                    source: "mfd-resolver",
+                });
+            }
+        }
+    }
     // Parse-level errors
     for (const pe of entry.parseErrors) {
         diagnostics.push({
