@@ -6,7 +6,7 @@ Este projeto usa o paradigma **MFD (Model-First Development)**: o modelo formal 
 
 The MFD plugin provides:
 - **11 MCP tools**: parse, validate, stats, render, contract, query, prompt, visual_start, visual_stop, visual_restart, visual_navigate
-- **5 skills**: /mfd-model, /mfd-explore, /mfd-implement, /mfd-validate, /mfd-status
+- **6 skills**: /mfd-model, /mfd-explore, /mfd-implement, /mfd-brownfield, /mfd-validate, /mfd-status
 - **4 hooks**: pre-edit, post-edit, post-bash, stop notification (enforce MFD cycle)
 - **LSP server**: syntax highlighting, completion, hover, go-to-definition for `.mfd` files
 

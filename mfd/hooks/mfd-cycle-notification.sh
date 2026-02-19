@@ -21,13 +21,8 @@ if [[ -z "$MFD_FILES" ]]; then
   exit 0
 fi
 
-# 2. Capturar git status
-GIT_STATUS=$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)
-
-# Se nao ha mudancas → silencio
-if [[ -z "$GIT_STATUS" ]]; then
-  exit 0
-fi
+# 2. Capturar git status (pode estar vazio se nao for repo git)
+GIT_STATUS=$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null || true)
 
 # 3. Extrair TODOS os caminhos @impl dos .mfd files
 # shellcheck disable=SC2086
@@ -94,12 +89,15 @@ fi
 # 5. Filtrar arquivos de codigo modificados do git status
 # Incluir: .ts .tsx .js .jsx .py .go .rs .rb .java .kt .cs
 # Excluir: test/spec, config, .d.ts, dist/build, node_modules, packages/mfd-*, plugin/
-CODE_FILES=$(echo "$GIT_STATUS" \
-  | grep -E '\.(ts|tsx|js|jsx|py|go|rs|rb|java|kt|cs)$' \
-  | grep -vE '(\.test\.|\.spec\.|__test|\.config\.|\.d\.ts)' \
-  | grep -vE '(dist/|build/|node_modules/)' \
-  | grep -vE '(packages/mfd-|plugin/)' \
-  | awk '{print $NF}')
+CODE_FILES=""
+if [[ -n "$GIT_STATUS" ]]; then
+  CODE_FILES=$(echo "$GIT_STATUS" \
+    | grep -E '\.(ts|tsx|js|jsx|py|go|rs|rb|java|kt|cs)$' \
+    | grep -vE '(\.test\.|\.spec\.|__test|\.config\.|\.d\.ts)' \
+    | grep -vE '(dist/|build/|node_modules/)' \
+    | grep -vE '(packages/mfd-|plugin/)' \
+    | awk '{print $NF}')
+fi
 
 # 6. Checar IMPL FALTANDO: codigo modificado que nao aparece em nenhum @impl
 MISSING_IMPL_LINES=""
@@ -119,13 +117,21 @@ if [[ -n "$CODE_FILES" ]]; then
 fi
 
 # 7. Contar mudancas por tipo
-MFD_COUNT=$(echo "$GIT_STATUS" | grep '\.mfd$' | wc -l)
+if [[ -n "$GIT_STATUS" ]]; then
+  MFD_COUNT=$(echo "$GIT_STATUS" | grep '\.mfd$' | wc -l)
+else
+  MFD_COUNT=0
+fi
 if [[ -n "$CODE_FILES" ]]; then
   CODE_COUNT=$(echo "$CODE_FILES" | wc -l)
 else
   CODE_COUNT=0
 fi
-TOTAL_COUNT=$(echo "$GIT_STATUS" | wc -l)
+if [[ -n "$GIT_STATUS" ]]; then
+  TOTAL_COUNT=$(echo "$GIT_STATUS" | wc -l)
+else
+  TOTAL_COUNT=0
+fi
 
 # 8. Montar output
 HAS_PROBLEMS=false

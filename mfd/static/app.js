@@ -4807,6 +4807,7 @@ async function renderMermaidDiagrams() {
   initApiGraphs();
   initJourneyGraphs();
   initOverviewGraphs();
+  initTimeline();
   document.querySelectorAll('.scope-diagram-container').forEach(dc => {
     const mermaidEl = dc.querySelector('.mermaid');
     const type = dc.dataset.diagramType || mermaidEl?.dataset.type;
@@ -4918,6 +4919,7 @@ async function reloadContent() {
       initApiGraphs();
       initJourneyGraphs();
       initOverviewGraphs();
+      initTimeline();
           canvas.scrollTop = scrollTop;
     }
 
@@ -5646,6 +5648,8 @@ document.addEventListener('keydown', (e) => {
         navigateSPA('/components');
       } else if (numKey === 3) {
         navigateSPA('/dashboard');
+      } else if (numKey === 4) {
+        navigateSPA('/timeline');
       }
     }
     return;
@@ -5830,6 +5834,7 @@ async function navigateSPA(href) {
     initApiGraphs();
     initJourneyGraphs();
     initOverviewGraphs();
+    initTimeline();
 
     // Restore active tab if component level
     const level = getNavLevel();
@@ -5853,6 +5858,258 @@ async function navigateSPA(href) {
 window.addEventListener('popstate', () => {
   navigateSPA(window.location.href);
 });
+
+// ===== Timeline =====
+
+/** @type {any[]|null} */
+let timelineCommits = null;
+
+function initTimeline() {
+  const page = document.getElementById('timeline-page');
+  if (!page) return;
+
+  fetchTimelineData();
+
+  // Modal close
+  const closeBtn = document.getElementById('timeline-modal-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeTimelineModal);
+  const overlay = document.getElementById('timeline-detail-modal');
+  if (overlay) overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeTimelineModal();
+  });
+}
+
+async function fetchTimelineData() {
+  const summary = document.getElementById('timeline-summary');
+  try {
+    const resp = await fetch('/api/timeline');
+    const data = await resp.json();
+    timelineCommits = data.commits || [];
+
+    if (summary) {
+      if (timelineCommits.length === 0) {
+        summary.textContent = 'No git history found for .mfd files';
+      } else {
+        const totalEvents = timelineCommits.reduce((s, c) => s + c.subEvents.length, 0);
+        summary.textContent = `${timelineCommits.length} commits, ${totalEvents} events`;
+      }
+    }
+
+    renderTimelineCanvas();
+  } catch (e) {
+    console.warn('Timeline fetch error:', e);
+    if (summary) summary.textContent = 'Error loading git history';
+  }
+}
+
+function wrapText(text, maxChars) {
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    if (current.length + word.length + 1 > maxChars && current.length > 0) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current ? current + ' ' + word : word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [text];
+}
+
+function renderTimelineCanvas() {
+  const container = document.getElementById('timeline-canvas-container');
+  if (!container || !timelineCommits || timelineCommits.length === 0) {
+    if (container) container.innerHTML = '<div class="timeline-empty">No commits to display</div>';
+    return;
+  }
+
+  // Chronological order: oldest first (left) → newest (right)
+  const commits = [...timelineCommits].reverse();
+  const gap = 300;
+  const padding = 160;
+  const centerY = 200;
+  const svgWidth = padding * 2 + Math.max((commits.length - 1) * gap, 300);
+  const svgHeight = 400;
+  const connectorLen = 40;
+  const lineH = 16;
+
+  const colorMap = { impl: '#34D399', model: '#60A5FA', refactor: '#FB923C', minor: '#888888' };
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`;
+
+  // Horizontal line — edge to edge ("infinite")
+  svg += `<line x1="0" y1="${centerY}" x2="${svgWidth}" y2="${centerY}" stroke="var(--scope-border)" stroke-width="2"/>`;
+
+  commits.forEach((commit, i) => {
+    const x = commits.length === 1
+      ? svgWidth / 2
+      : padding + (i / (commits.length - 1)) * (svgWidth - padding * 2);
+
+    const totalChanges = commit.subEvents.length;
+    const r = Math.min(14, Math.max(5, 4 + totalChanges));
+    const color = colorMap[getDotColor(commit)] || '#888888';
+    const above = i % 2 === 0;
+
+    // Connector endpoints
+    const connY1 = above ? centerY - r : centerY + r;
+    const connY2 = above ? centerY - r - connectorLen : centerY + r + connectorLen;
+
+    // Message lines
+    const msgLines = wrapText(commit.message, 35);
+    const dateStr = formatShortDate(commit.date);
+
+    svg += `<g class="timeline-node" data-hash="${commit.shortHash}">`;
+
+    // Circle
+    svg += `<circle cx="${x}" cy="${centerY}" r="${r}" fill="${color}"/>`;
+
+    // Connector line
+    svg += `<line x1="${x}" y1="${connY1}" x2="${x}" y2="${connY2}" stroke="var(--scope-border)" stroke-width="1" opacity="0.4"/>`;
+
+    // Text label
+    if (above) {
+      // Labels above: text grows upward from connector end
+      const totalTextLines = msgLines.length + 1;
+      const textStartY = connY2 - (totalTextLines - 1) * lineH - 4;
+
+      svg += `<text x="${x}" text-anchor="middle" font-size="11">`;
+      msgLines.forEach((line, li) => {
+        svg += `<tspan x="${x}" y="${textStartY + li * lineH}">${escapeHtml(line)}</tspan>`;
+      });
+      svg += `<tspan x="${x}" y="${textStartY + msgLines.length * lineH + 4}" class="timeline-svg-date" font-size="10">${dateStr}</tspan>`;
+      svg += '</text>';
+    } else {
+      // Labels below: text grows downward from connector end
+      const textStartY = connY2 + lineH;
+
+      svg += `<text x="${x}" text-anchor="middle" font-size="11">`;
+      msgLines.forEach((line, li) => {
+        svg += `<tspan x="${x}" y="${textStartY + li * lineH}">${escapeHtml(line)}</tspan>`;
+      });
+      svg += `<tspan x="${x}" y="${textStartY + msgLines.length * lineH + 4}" class="timeline-svg-date" font-size="10">${dateStr}</tspan>`;
+      svg += '</text>';
+    }
+
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+
+  // Click handlers on SVG nodes
+  container.querySelectorAll('.timeline-node').forEach(node => {
+    node.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const hash = node.getAttribute('data-hash');
+      const commit = timelineCommits.find(c => c.shortHash === hash);
+      if (commit) openTimelineModal(commit);
+    });
+  });
+
+  // Reuse DiagramCanvas for zoom/pan
+  if (canvasInstances.has(container)) canvasInstances.get(container).destroy();
+  const canvas = new DiagramCanvas(container);
+  canvasInstances.set(container, canvas);
+}
+
+function getDotColor(commit) {
+  const s = commit.stats;
+  if (s.implAdded > 0 && s.implAdded >= s.added) return 'impl';
+  if (s.added > 0 && s.added >= s.modified + s.removed) return 'model';
+  if (s.modified > 0 || s.removed > 0) return 'refactor';
+  return 'minor';
+}
+
+function formatShortDate(isoDate) {
+  const d = new Date(isoDate);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}`;
+}
+
+function formatFullDate(isoDate) {
+  const d = new Date(isoDate);
+  return d.toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function openTimelineModal(commit) {
+  const modal = document.getElementById('timeline-detail-modal');
+  if (!modal) return;
+
+  const header = document.getElementById('timeline-modal-header');
+  const message = document.getElementById('timeline-modal-message');
+  const stats = document.getElementById('timeline-modal-stats');
+  const events = document.getElementById('timeline-modal-events');
+
+  if (header) {
+    header.innerHTML = `
+      <span class="timeline-modal-hash">${commit.hash}</span>
+      <span class="timeline-modal-author">${escapeHtml(commit.author)}</span>
+      <span class="timeline-modal-date">${formatFullDate(commit.date)}</span>`;
+  }
+
+  if (message) {
+    message.textContent = commit.message;
+  }
+
+  if (stats) {
+    const badges = [];
+    const s = commit.stats;
+    if (s.added > 0) badges.push(`<span class="timeline-modal-stat added">+${s.added} added</span>`);
+    if (s.removed > 0) badges.push(`<span class="timeline-modal-stat removed">-${s.removed} removed</span>`);
+    if (s.modified > 0) badges.push(`<span class="timeline-modal-stat modified">~${s.modified} modified</span>`);
+    if (s.implAdded > 0) badges.push(`<span class="timeline-modal-stat impl-added">+${s.implAdded} impl</span>`);
+    if (s.implRemoved > 0) badges.push(`<span class="timeline-modal-stat impl-removed">-${s.implRemoved} impl</span>`);
+    stats.innerHTML = badges.join('');
+  }
+
+  if (events) {
+    if (commit.subEvents.length === 0) {
+      events.innerHTML = '<div class="timeline-modal-events-title">No construct-level changes detected</div>';
+    } else {
+      const typeLabels = {
+        construct_added: 'added',
+        construct_removed: 'removed',
+        construct_modified: 'modified',
+        impl_added: '+impl',
+        impl_removed: '-impl',
+        impl_changed: '~impl',
+      };
+
+      const rows = commit.subEvents.map(ev => {
+        const label = typeLabels[ev.type] || ev.type;
+        const detail = ev.detail ? `<span class="timeline-subevent-detail">${escapeHtml(ev.detail)}</span>` : '';
+        return `<div class="timeline-subevent ${ev.type}">
+          <span class="timeline-subevent-type">${label}</span>
+          <span class="timeline-subevent-name">${escapeHtml(ev.constructType)}:${escapeHtml(ev.constructName)}</span>
+          ${detail}
+        </div>`;
+      }).join('');
+
+      events.innerHTML = `<div class="timeline-modal-events-title">Changes (${commit.subEvents.length})</div>${rows}`;
+    }
+  }
+
+  modal.style.display = '';
+
+  // Close on Esc
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      closeTimelineModal();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
+function closeTimelineModal() {
+  const modal = document.getElementById('timeline-detail-modal');
+  if (modal) modal.style.display = 'none';
+}
 
 // ===== Helpers =====
 function escapeHtml(str) {

@@ -55,13 +55,14 @@ npx mfd stats model.mfd
 | `mfd_visual_restart` | Restart the visual server (picks up changes) |
 | `mfd_visual_navigate` | Navigate to a specific view in the dashboard |
 
-## Available Skills (5)
+## Available Skills (6)
 
 | Skill | Description |
 |-------|-------------|
 | `/mfd-model` | Create or edit an MFD model through natural language conversation |
 | `/mfd-explore` | Query the model as the authoritative source of truth |
 | `/mfd-implement` | Implement code following the model as a contract |
+| `/mfd-brownfield` | Reverse-engineer an MFD model from an existing codebase |
 | `/mfd-validate` | Validate a model file and show errors with fix suggestions |
 | `/mfd-status` | Show implementation progress and completeness metrics |
 
