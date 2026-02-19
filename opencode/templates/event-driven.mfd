@@ -1,0 +1,219 @@
+# ============================================
+# Event-Driven Architecture Template
+# ============================================
+# Use this template for systems that communicate via events
+# (pub/sub, message queues, event sourcing patterns).
+# Customize: add domain-specific events, consumers, and
+# processing flows.
+
+system "{{PROJECT_NAME}}" @version(1.0) {
+  # Event-driven architecture with async message processing
+  # Restricao: at-least-once delivery (consumers must be idempotent)
+  # Premissa: events are immutable after publication
+  # Premissa: dead-letter queue for failed processing
+}
+
+component Producer @status(pending) {
+  dep -> MessageBroker @type(rabbitmq)
+  # Publishes domain events to message broker
+}
+
+component Consumer @status(pending) {
+  dep -> MessageBroker @type(rabbitmq)
+  dep -> Database @type(postgres)
+  # Subscribes to events and processes them
+}
+
+component MessageBroker @status(pending) {
+  # Central message routing (RabbitMQ, Kafka, or similar)
+}
+
+component Database @status(pending) {
+  # Persistent storage for processed event data
+}
+
+component DeadLetterHandler @status(pending) {
+  dep -> MessageBroker @type(rabbitmq)
+  dep -> Database @type(postgres)
+  # Handles events that failed processing after max retries
+}
+
+# --- Entities ---
+
+entity DomainEvent {
+  id: uuid @unique
+  event_type: string
+  payload: string
+  source: string
+  correlation_id: uuid
+  timestamp: datetime
+  version: number @min(1)
+}
+
+entity EventSubscription {
+  id: uuid @unique
+  event_type: string
+  consumer_id: string
+  status: SubscriptionStatus
+  created_at: datetime
+}
+
+entity DeadLetter {
+  id: uuid @unique
+  event_id: uuid
+  event_type: string
+  payload: string
+  error: string
+  retry_count: number @min(0)
+  failed_at: datetime
+  resolved_at: datetime?
+}
+
+entity ProcessingLog {
+  id: uuid @unique
+  event_id: uuid
+  consumer_id: string
+  status: ProcessingStatus
+  started_at: datetime
+  completed_at: datetime?
+  error: string?
+}
+
+# --- Enums ---
+
+enum SubscriptionStatus { active, paused, cancelled }
+
+enum ProcessingStatus { pending, processing, completed, failed, skipped }
+
+enum DeadLetterStatus { unresolved, retrying, resolved, discarded }
+
+# --- State Machine ---
+
+state processing_lifecycle on ProcessingStatus {
+  pending -> processing
+  processing -> completed
+  processing -> failed
+  failed -> pending
+  pending -> skipped
+}
+
+# --- Events ---
+
+event EventPublished {
+  event_id: uuid
+  event_type: string
+  source: string
+  published_at: datetime
+}
+
+event EventProcessed {
+  event_id: uuid
+  consumer_id: string
+  processed_at: datetime
+}
+
+event EventFailed {
+  event_id: uuid
+  consumer_id: string
+  error: string
+  retry_count: number
+  failed_at: datetime
+}
+
+event DeadLetterCreated {
+  dead_letter_id: uuid
+  event_id: uuid
+  error: string
+  created_at: datetime
+}
+
+# --- Flows ---
+
+flow publish_event {
+  # Publish a domain event to the message broker
+  validate event_payload
+    | invalid -> return validation_error
+  generate event_id
+  generate correlation_id
+  save DomainEvent
+  send_to_broker event
+    | broker_unavailable -> return broker_error
+  return published_event
+}
+
+flow process_event {
+  # Process a received event (consumer side)
+  check_idempotency event_id
+    | already_processed -> return skipped
+  save ProcessingLog @status(processing)
+  execute handler
+    | error -> handle_failure
+  update ProcessingLog @status(completed)
+  acknowledge event
+  return success
+}
+
+flow handle_failure {
+  # Handle event processing failure with retry logic
+  increment retry_count
+  check retry_count
+    | under_max -> requeue event with delay
+    | over_max -> move_to_dead_letter
+  update ProcessingLog @status(failed)
+  return failure_handled
+}
+
+flow retry_dead_letter {
+  # Retry processing a dead-letter event
+  find DeadLetter by id
+    | not_found -> return not_found_error
+  republish event to original queue
+  update DeadLetter @status(retrying)
+  return retry_initiated
+}
+
+# --- API ---
+
+api EventAPI REST @prefix(/api/v1/events) {
+  POST /events (DomainEvent) -> DomainEvent @auth @rate_limit(100/min)
+  GET /events/{id} -> DomainEvent @auth
+  GET /events -> DomainEvent[] @auth @cache(10s)
+}
+
+api SubscriptionAPI REST @prefix(/api/v1/subscriptions) {
+  POST /subscriptions (EventSubscription) -> EventSubscription @auth
+  GET /subscriptions -> EventSubscription[] @auth
+  DELETE /subscriptions/{id} -> void @auth
+}
+
+api DeadLetterAPI REST @prefix(/api/v1/dead-letters) {
+  GET /dead-letters -> DeadLetter[] @auth
+  POST /dead-letters/{id}/retry -> DeadLetter @auth
+  POST /dead-letters/{id}/discard -> DeadLetter @auth
+}
+
+# --- Rules ---
+
+rule idempotent_processing {
+  when: DomainEvent with same id is received by same consumer
+  then: skip processing and return success
+  # At-least-once delivery requires idempotent consumers
+}
+
+rule max_retries {
+  when: ProcessingLog.retry_count > 3
+  then: move event to dead-letter queue
+  # Prevent infinite retry loops
+}
+
+rule event_ordering {
+  when: events share same correlation_id
+  then: process in timestamp order
+  # Maintain causal ordering within a correlation group
+}
+
+rule dead_letter_alerting {
+  when: DeadLetter count > 10 in 1 hour
+  then: trigger alert to operations team
+  # Detect systemic processing failures early
+}

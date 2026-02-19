@@ -1,0 +1,1 @@
+{"version":3,"file":"stats.d.ts","sourceRoot":"","sources":["../../../src/mcp/tools/stats.ts"],"names":[],"mappings":"AAEA,OAAO,EAAgB,KAAK,YAAY,EAAE,MAAM,aAAa,CAAC;AAE9D,wBAAgB,WAAW,CAAC,IAAI,EAAE;IAChC,IAAI,EAAE,MAAM,CAAC;IACb,gBAAgB,CAAC,EAAE,OAAO,CAAC;CAC5B,GAAG,YAAY,CAoFf"}

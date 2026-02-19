@@ -1,0 +1,1 @@
+{"version":3,"file":"inheritance-validation.d.ts","sourceRoot":"","sources":["../../../../src/core/validator/rules/inheritance-validation.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EACV,WAAW,EAYZ,MAAM,qBAAqB,CAAC;AAC7B,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,aAAa,CAAC;AAsDxD,wBAAgB,qBAAqB,CAAC,GAAG,EAAE,WAAW,GAAG,oBAAoB,EAAE,CAwa9E"}

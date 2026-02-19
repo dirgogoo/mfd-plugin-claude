@@ -1,0 +1,1 @@
+{"version":3,"file":"abstraction-hygiene.d.ts","sourceRoot":"","sources":["../../../../src/core/validator/rules/abstraction-hygiene.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,qBAAqB,CAAC;AACvD,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,aAAa,CAAC;AAGxD;;;;;;;;;;GAUG;AACH,wBAAgB,kBAAkB,CAAC,GAAG,EAAE,WAAW,GAAG,oBAAoB,EAAE,CA0E3E"}
