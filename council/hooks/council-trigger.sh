@@ -19,22 +19,22 @@ if [[ -z "$MFD_FILES" ]]; then
   exit 0
 fi
 
-# 2. Capturar git status
-GIT_STATUS=$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)
-
-# Se nao ha mudancas → silencio
-if [[ -z "$GIT_STATUS" ]]; then
-  exit 0
-fi
+# 2. Capturar git status (pode estar vazio se nao for repo git)
+GIT_STATUS=$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null || true)
 
 # 3. Detectar tipo de mudancas
-MFD_CHANGES=$(echo "$GIT_STATUS" | grep '\.mfd$' | wc -l)
-CODE_CHANGES=$(echo "$GIT_STATUS" \
-  | grep -E '\.(ts|tsx|js|jsx|py|go|rs|rb|java|kt|cs)$' \
-  | grep -vE '(\.test\.|\.spec\.|__test|\.config\.|\.d\.ts)' \
-  | grep -vE '(dist/|build/|node_modules/)' \
-  | grep -vE '(packages/mfd-|plugin/)' \
-  | wc -l)
+if [[ -n "$GIT_STATUS" ]]; then
+  MFD_CHANGES=$(echo "$GIT_STATUS" | grep '\.mfd$' | wc -l)
+  CODE_CHANGES=$(echo "$GIT_STATUS" \
+    | grep -E '\.(ts|tsx|js|jsx|py|go|rs|rb|java|kt|cs)$' \
+    | grep -vE '(\.test\.|\.spec\.|__test|\.config\.|\.d\.ts)' \
+    | grep -vE '(dist/|build/|node_modules/)' \
+    | grep -vE '(packages/mfd-|plugin/)' \
+    | wc -l)
+else
+  MFD_CHANGES=0
+  CODE_CHANGES=0
+fi
 
 # Verificar se ha construtos com @impl (indica projeto em fase de implementacao)
 # shellcheck disable=SC2086
@@ -53,9 +53,13 @@ if [[ "$CODE_CHANGES" -gt 0 ]] && [[ -n "$HAS_IMPL" ]]; then
   fi
 fi
 
-# Se nenhuma mudanca relevante → silencio
+# Sem git ou sem mudancas relevantes: auto-detectar pela presenca de @impl
 if [[ -z "$PHASE" ]]; then
-  exit 0
+  if [[ -n "$HAS_IMPL" ]]; then
+    PHASE="implementation"
+  else
+    PHASE="modeling"
+  fi
 fi
 
 # 5. Output instrucoes
