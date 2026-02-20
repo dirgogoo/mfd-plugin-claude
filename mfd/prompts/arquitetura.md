@@ -23,6 +23,7 @@ element      -> UI Components (building blocks)
 action       -> UI Commands / Handlers
 dep          -> Infrastructure / Adapters
 secret       -> Configuration / Environment
+node         -> Deployment Topology / Infrastructure Target
 ```
 
 **Principio de camadas:** cada camada so conhece a camada imediatamente abaixo. `api` -> `flow` -> `operation` -> `entity`. Nunca pular camadas.
@@ -53,6 +54,40 @@ secret       -> Configuration / Environment
 - `dep -> X @type(internal)` ou sem `@type` = mesmo processo
 - `dep -> X @type(http)` / `@type(grpc)` = processo separado
 - `dep -> X @type(postgres)` / `@type(redis)` = infraestrutura
+
+### Topologia de Deployment com `node`
+
+Quando componentes rodam em locais fisicos distintos, declarar nodes explicita a topologia:
+
+```mfd
+system "Sistema" @version(1.0) {
+  node machine    # dispositivo edge
+  node central    # servidor central
+
+  component EdgeAgent @node(machine) {
+    dep -> CentralAPI @type(grpc)  # cross-node = chamada de rede
+  }
+
+  component CentralAPI @node(central) {
+    dep -> Database @type(postgres)
+  }
+}
+```
+
+**Regras cross-node:**
+
+- `dep` entre componentes de **nodes diferentes** implica chamada de rede — implementar com retry, timeout, circuit breaker
+- `dep` entre componentes do **mesmo node** (ou sem node) = mesmo processo — chamada de funcao
+- No edge (`@node(edge)`) deve funcionar offline se a conectividade nao e garantida
+- Dados criticos para operacao offline devem ser sincronizados via eventos (`emits`/`on`) quando a conexao for restabelecida
+
+**Padroes por tipo de node:**
+
+| Tipo de Node | Padroes Tipicos |
+|-------------|-----------------|
+| Edge/IoT | Resiliencia offline, sincronizacao por eventos, payload compacto |
+| Central/Cloud | Escalabilidade horizontal, circuit breakers, health checks |
+| Client/Browser | Signals para UI reativa, actions sobre STREAM endpoints |
 
 ## DTOs como Fronteira
 

@@ -9,8 +9,12 @@ ti = d.get('tool_input', {})
 print(ti.get('file_path', '') or ti.get('filePath', ''))
 " 2>/dev/null)
 
-# --- Acabou de editar .mfd → Proximos passos ---
+# --- Acabou de editar .mfd → Auto-strip @verified + Proximos passos ---
 if [[ "$FILE_PATH" == *.mfd ]]; then
+  # Auto-strip: qualquer edicao em um arquivo .mfd invalida verificacoes anteriores.
+  # Remove todos os @verified do arquivo para garantir que @verified nunca mente.
+  sed -i -E 's/[[:blank:]]*@verified[[:blank:]]*\([^)]*\)//g; s/[[:blank:]]*@verified\b//g' "$FILE_PATH" 2>/dev/null || true
+
   cat <<'PROMPT'
 [MFD Ciclo — Pos-Edicao de Modelo]
 

@@ -236,8 +236,8 @@ mfd split modelo-monolitico.mfd --output model/
 
 ## MFD-DSL — Referencia Compacta
 
-### 19 Construtos (5 categorias)
-**Estrutura:** `system`, `component`, `entity`, `enum`
+### 20 Construtos (5 categorias)
+**Estrutura:** `system`, `component`, `node`, `entity`, `enum`
 **Comportamento:** `flow`, `state`, `event`, `signal`, `operation`
 **Contratos:** `api`, `rule`, `dep`, `secret`
 **Experiencia:** `screen`, `journey`, `element`, `action`
@@ -252,7 +252,9 @@ Optional: `type?` | Array: `type[]` | Union: `Type1 | Type2`
 ```mfd
 system "Nome" @version(1.0) {
   import "shared"
-  component Nome @status(active) {
+  node machine           # no edge (dispositivo fisico)
+  node central           # no central (servidor)
+  component Nome @node(machine) @status(active) {
     dep -> Outro @type(postgres)
     secret NOME @required @rotation(90d)
     entity Nome { campo: tipo @decorator }
