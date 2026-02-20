@@ -161,33 +161,41 @@ Display a summary table:
 
 List the changes made to the model (if any).
 
-## Phase: IMPLEMENTATION (Batched Review, Priority Ordering, Immediate Marking)
+## Phase: IMPLEMENTATION (Round-Robin Batched Review)
 
-### Step I1: Gather Context + Build Priority Queue
+### Step I1: Gather Context
 
 ```
 mfd_contract file="<path>" compact=true resolve_includes=true
 mfd_trace file="<path>" resolve_includes=true
-mfd_verify file="<path>" action="list-pending" threshold=100 resolve_includes=true
 ```
 
-From `mfd_trace`, extract the list of constructs with `@impl` and their file paths.
+From `mfd_trace`, confirm that at least one construct has `@impl`. If none, report "No @impl decorators found — nothing to verify" and exit.
 
-If no constructs have `@impl`, report "No @impl decorators found — nothing to verify" and exit.
+Initialize: `round = 1`, `page = 0`, `batchCount = 0`, `driftCounts = {}` (map construct name → number of times it was found drifting).
 
-From `mfd_verify list-pending`, the returned `pending` array is **already sorted** by `verifiedCount` ascending, then alphabetically by name — this is the ready-to-use priority queue. Use it in order as returned; do not re-sort.
+### Step I2: Round-Robin Loop
 
-If `list-pending` returns empty (all constructs verified above threshold), still proceed — re-verification is valid; call `mfd_trace` to get the full @impl list and use it as the queue (alphabetical order).
+**CRITICAL: SEQUENTIAL. Each batch must fully complete before the next begins. Do NOT parallelize.**
 
-### Step I2: Batched Review Loop
+```
+while round <= 5:
+  call mfd_verify(file, action="list-pending", batch_size=5, page=page, resolve_includes=true)
 
-**CRITICAL: This loop is SEQUENTIAL. Do NOT parallelize batches. Each batch must fully complete — subagent returned, constructs marked — before the next batch begins.**
+  if total_pending == 0:
+    → EXIT LOOP (success): all constructs are conforming ✓
 
-**Use the priority queue exactly as returned by `mfd_verify list-pending`** — it is already sorted by verifiedCount ascending, then name alphabetically. Do NOT re-sort, do NOT reorder by "recently modified", "highest risk", or any subjective criterion.
+  if returned == 0:
+    → END OF ROUND: all batches in this round processed
+    → if total_pending == 0: EXIT LOOP (success) ✓
+    → else: page=0, round++, continue (start next round)
 
-Process the **entire priority queue** in batches of 5, from first to last. The loop ends when every construct in the queue has been reviewed — there is no fixed limit on how many batches run. Track a `batchCount` counter starting at 1.
+  → PROCESS THIS BATCH (steps a–c below)
+  → page++, batchCount++
 
-**For each batch:**
+if round > 5 and total_pending > 0:
+  → EXIT LOOP (partial): report remaining pending constructs as "unresolved after 5 rounds"
+```
 
 **a) Dispatch 1 subagent** (`subagent_type: "general-purpose"`, `model: "sonnet"`):
 
@@ -196,37 +204,32 @@ Process the **entire priority queue** in batches of 5, from first to last. The l
 - Task prompt includes:
   - Both prompts above
   - The .mfd file path
-  - A `CONSTRUCTS_TO_REVIEW:` list with **only the constructs in this batch** (name + @impl file paths)
-  - Instruction: review ONLY the provided constructs, not all @impl constructs found via mfd_trace
+  - A `CONSTRUCTS_TO_REVIEW:` list with the constructs from `pending` (name + @impl file paths)
+  - Instruction: review ONLY the provided constructs
 - **NEVER use `subagent_type: "code-reviewer"`** — use `general-purpose` only.
 
-**b) Wait for the subagent to return. Do not start the next batch until this one is done.**
+**b) Wait for the subagent to return.**
 
-**c) Immediately after the subagent returns** — regardless of overall VERDICT:
+**c) Immediately after the subagent returns:**
 
-1. Parse the `CONFORMING_CONSTRUCTS:` section (always present per updated code-review.md format)
-   - For each construct listed → call `mfd_verify({ file: "<path>", action: "mark", construct: "<NAME>" })` **right now** (do not defer to end)
-   - Extract construct name as the last word of each line (e.g. `entity User` → `User`)
+1. Parse `CONFORMING_CONSTRUCTS:` (always present)
+   - For each construct → call `mfd_verify mark` **right now**
+   - Extract name as last word of each line (e.g. `entity User` → `User`)
 
-2. Parse the `DRIFT:` section (present only if any drift found)
-   - For each drifted construct, check for `DECISION_REQUIRED: true`:
-     - **If DECISION_REQUIRED: true and YOLO_MODE = false** → do NOT auto-fix. Ask the user:
-       > "**[construct name]** has [describe what was found] that is not in the model. Reason: [DECISION_REASON]. What should I do?
-       > (A) Add it to the model — I'll update the .mfd file now and treat the code as correct
-       > (B) Remove it from the code — aligns to current model"
-       Wait for the user's answer before continuing to the next batch. If user chooses (A), update the model (edit the .mfd file, run `mfd_validate`, treat as conforming). If user chooses (B), apply the removal and add to re-verification list.
-     - **If DECISION_REQUIRED: true and YOLO_MODE = true** → apply Yolo Decision Policy from Step 2.5 and continue without pausing.
-     - **If no DECISION_REQUIRED** → standard flow:
-       - Read the file mentioned in `FILE`
-       - Apply the fix described in `FIX` (fixes target **CODE**, never the model)
-       - Call `mfd_verify({ file: "<path>", action: "strip", construct: "<NAME>" })` to remove any existing @verified
-       - Add the construct to a **re-verification list**
+2. Parse `DRIFT:` (present only if drift found)
+   - For each drifted construct:
+     - Increment `driftCounts[name]`
+     - If `driftCounts[name] > 5` → skip, add to final "unresolved drift" list, do not fix
+     - **If DECISION_REQUIRED: true and YOLO_MODE = false** → pause, ask the user:
+       > "**[construct]** has [what was found] not in the model. [DECISION_REASON]. What should I do?
+       > (A) Add to model — I'll update the .mfd file now
+       > (B) Remove from code — aligns to current model"
+       Wait for answer. If (A): update model, run `mfd_validate`, call `mfd_verify mark`. If (B): apply removal, call `mfd_verify strip`.
+     - **If DECISION_REQUIRED: true and YOLO_MODE = true** → apply Yolo Decision Policy from Step 2.5.
+     - **If no DECISION_REQUIRED** → apply the fix, call `mfd_verify strip`.
+     - After fix/strip: the construct's `verifiedCount` resets to 0 — it will appear at the **top** of the next round's priority queue automatically.
 
-**d)** Increment `batchCount`. Continue to the next batch of 5.
-
-**e) Re-verification pass:** After the entire queue is processed, if the re-verification list is non-empty, process those constructs through the same sequential batched loop (batches of 5, sorted alphabetically). Apply same immediate marking logic. This counts as additional batches toward `batchCount`.
-
-**Per-construct safety limit:** Track how many times each individual construct has been through a re-verification pass. If a specific construct has been re-verified 5 times and still drifts, skip it and report it as "unresolved drift". This limit is per-construct — it does NOT cap the total number of batches.
+**Why this works:** `list-pending` re-reads the file on each call. After `mfd_verify mark`, a construct's `verifiedCount` increases past threshold and disappears from future calls. After `mfd_verify strip` (drift fixed), its `verifiedCount` drops to 0, placing it at the front of the next round. The loop exits only when `total_pending == 0` — i.e., every construct has been marked.
 
 ### Step I3: Final Report (Implementation)
 
@@ -234,10 +237,11 @@ Process the **entire priority queue** in batches of 5, from first to last. The l
 ## MFD Council — Implementation Review
 
 **Mode:** Normal | Yolo
+**Rounds completed:** 2
+**Batches processed:** 7
 **Constructs verified:** 12
-**Files checked:** 8
-**Batches processed:** 3
-**@verified updated:** 12 constructs marked with @verified(N)
+**Fixes applied:** 2
+**Unresolved drift:** 0
 
 | Construct         | File                        | Status              | @verified    |
 |-------------------|-----------------------------|---------------------|--------------|
@@ -246,10 +250,10 @@ Process the **entire priority queue** in batches of 5, from first to last. The l
 | entity Result     | src/types.ts                | [YOLO] Model updated| @verified(1) |
 | api REST /orders  | src/routes/orders.ts        | Conforming          | @verified(2) |
 
-**Yolo decisions:** (only in Yolo mode — list each autonomous model update with reason)
+**Yolo decisions:** (only in Yolo mode)
   - entity CommandResult: added `executed_at?: datetime` — timestamp of agent execution, actively used in CommandLog
 
-**Result:** All code conforms to model after 1 fix. @verified updated on all constructs.
+**Result:** All constructs conforming after 2 rounds. @verified updated on all.
 ```
 
 ## Notes

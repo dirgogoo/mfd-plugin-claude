@@ -237,19 +237,29 @@ function handleListPending(args) {
     }
     // Sort by verifiedCount ascending (lowest first = highest priority), then alphabetically by name
     pending.sort((a, b) => a.verifiedCount - b.verifiedCount || a.name.localeCompare(b.name));
+    const totalPending = pending.length;
+    const batchSize = args.batch_size;
+    const page = args.page ?? 0;
+    const offset = batchSize != null ? page * batchSize : 0;
+    const batch = batchSize != null ? pending.slice(offset, offset + batchSize) : pending;
+    const hasMore = batchSize != null ? offset + batchSize < totalPending : false;
+    const totalPages = batchSize != null ? Math.ceil(totalPending / batchSize) : 1;
     const withImpl = allTrackable.reduce((sum, { items }) => sum + items.filter((i) => i.decorators?.some((d) => d.name === "impl")).length, 0);
     return {
         content: [{
                 type: "text",
                 text: JSON.stringify({
                     summary: {
-                        pending: pending.length,
+                        returned: batch.length,
+                        total_pending: totalPending,
+                        has_more: hasMore,
+                        ...(batchSize != null && { page, total_pages: totalPages, batch_size: batchSize }),
                         withImpl,
-                        pct: withImpl > 0 ? Math.round(((withImpl - pending.length) / withImpl) * 100) : 0,
+                        pct_verified: withImpl > 0 ? Math.round(((withImpl - totalPending) / withImpl) * 100) : 100,
                         threshold,
                         sorted_by: "verifiedCount asc, name asc",
                     },
-                    pending,
+                    pending: batch,
                 }, null, 2),
             }],
     };

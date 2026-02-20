@@ -5,6 +5,8 @@ interface VerifyArgs {
     construct?: string;
     component?: string;
     threshold?: number;
+    batch_size?: number;
+    page?: number;
     codePath?: string;
     resolve_includes?: boolean;
 }
