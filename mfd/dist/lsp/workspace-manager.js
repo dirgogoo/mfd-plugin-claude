@@ -88,6 +88,43 @@ export class WorkspaceManager {
         }
     }
     /**
+     * Scan an entire workspace folder recursively for .mfd root files and pre-resolve them.
+     * Called once on LSP initialization so cross-file features work from the start,
+     * regardless of whether the project has a git repository.
+     */
+    scanWorkspace(rootPath, maxDepth = 6) {
+        this._scanDir(rootPath, 0, maxDepth);
+    }
+    _scanDir(dir, depth, maxDepth) {
+        if (depth > maxDepth)
+            return;
+        try {
+            for (const entry of readdirSync(dir, { withFileTypes: true })) {
+                // Skip hidden dirs and common non-project dirs
+                if (entry.name.startsWith(".") || entry.name === "node_modules")
+                    continue;
+                const fullPath = join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    this._scanDir(fullPath, depth + 1, maxDepth);
+                }
+                else if (entry.name.endsWith(".mfd")) {
+                    try {
+                        const content = readFileSync(fullPath, "utf-8");
+                        if (content.includes("import ") || content.includes("include ")) {
+                            this.resolve(fullPath);
+                        }
+                    }
+                    catch {
+                        // skip unreadable files
+                    }
+                }
+            }
+        }
+        catch {
+            // skip unreadable directories
+        }
+    }
+    /**
      * Returns the ResolvedEntry that "contains" the given file.
      * Prefers the parent root (more complete merged model) over the file's own entry.
      */

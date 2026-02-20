@@ -10,6 +10,7 @@
  * - Document symbols (outline view)
  */
 import { createConnection, ProposedFeatures, TextDocumentSyncKind, } from "vscode-languageserver/node.js";
+import { fileURLToPath } from "node:url";
 import { DocumentManager } from "./document-manager.js";
 import { setupDiagnostics } from "./capabilities/diagnostics.js";
 import { getCompletions } from "./capabilities/completion.js";
@@ -19,7 +20,16 @@ import { getDocumentSymbols } from "./capabilities/symbols.js";
 // Create connection via stdio
 const connection = createConnection(ProposedFeatures.all);
 const docManager = new DocumentManager();
-connection.onInitialize((_params) => {
+let workspaceRoot = null;
+connection.onInitialize((params) => {
+    // Capture workspace root — works with or without git
+    const uri = params.rootUri ?? params.workspaceFolders?.[0]?.uri;
+    if (uri) {
+        try {
+            workspaceRoot = fileURLToPath(uri);
+        }
+        catch { /* non-file URI, ignore */ }
+    }
     return {
         capabilities: {
             textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -32,6 +42,13 @@ connection.onInitialize((_params) => {
             documentSymbolProvider: true,
         },
     };
+});
+connection.onInitialized(() => {
+    // Pre-populate the workspace graph so cross-file features work immediately,
+    // even without a git repository.
+    if (workspaceRoot) {
+        docManager.workspace.scanWorkspace(workspaceRoot);
+    }
 });
 // Wire up capabilities
 setupDiagnostics(connection, docManager);

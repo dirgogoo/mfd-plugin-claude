@@ -18,6 +18,13 @@ export declare class WorkspaceManager {
      */
     private discoverRoots;
     /**
+     * Scan an entire workspace folder recursively for .mfd root files and pre-resolve them.
+     * Called once on LSP initialization so cross-file features work from the start,
+     * regardless of whether the project has a git repository.
+     */
+    scanWorkspace(rootPath: string, maxDepth?: number): void;
+    private _scanDir;
+    /**
      * Returns the ResolvedEntry that "contains" the given file.
      * Prefers the parent root (more complete merged model) over the file's own entry.
      */
