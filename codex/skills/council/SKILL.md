@@ -13,6 +13,7 @@ Multi-agent review council that reviews MFD models from multiple perspectives (m
 `$ARGUMENTS` — Optional flags:
 - `--phase modeling` — Force modeling phase (3-perspective model review)
 - `--phase implementation` — Force implementation phase (code vs model drift detection)
+- `--yolo` — Skip mode selection question and run in Yolo mode (see below)
 - `<path>` — Path to the .mfd file (auto-detected if omitted)
 
 If no `--phase` is specified, the phase is auto-detected from git status.
@@ -45,6 +46,34 @@ For multi-file models, use the entry point (`main.mfd`). If multiple `.mfd` file
 ## Step 2: Pre-validate
 
 Run `mfd_validate` on the file. If there are ERRORs, fix them first before proceeding. WARNINGs are acceptable.
+
+## Step 2.5: Mode Selection
+
+If `--yolo` is present in `$ARGUMENTS`, set **YOLO MODE = true** and skip this step.
+
+Otherwise, ask the user:
+
+> **Council mode?**
+> - **Normal** — When a construct has extra code not in the model but with clear business value, I'll pause and ask you: "Add to model or remove from code?"
+> - **Yolo** — Fully autonomous. I'll update the model myself when the code has something worth keeping, and remove from code when it doesn't. No interruptions.
+
+Store the user's choice as `YOLO_MODE` (true/false) for use throughout the session.
+
+### Yolo Mode — Decision Policy
+
+When `YOLO_MODE = true` and a DECISION_REQUIRED item is found during implementation review:
+
+1. **If the field/behavior has business value** (DECISION_REQUIRED was set because it's semantically meaningful and actively used):
+   - Update the model: edit the .mfd file to add the missing field or construct using valid MFD-DSL
+   - Run `mfd_validate` to confirm no errors introduced
+   - Log: `[YOLO] Updated model: added <field> to <construct> — reason: <DECISION_REASON>`
+   - Treat the construct as conforming (code was right, model was incomplete)
+
+2. **If the field/behavior is vestigial** (debug, temp, or unused — DECISION_REQUIRED should not have been set, but if it was):
+   - Remove from code (standard drift fix)
+   - Log: `[YOLO] Removed from code: <field> on <construct> — vestigial, no business value`
+
+When `YOLO_MODE = true`, never pause for user input mid-session.
 
 ## Phase: MODELING (3 Subagents, Max 3 Iterations)
 
@@ -181,11 +210,12 @@ Process the **entire priority queue** in batches of 5, from first to last. The l
 
 2. Parse the `DRIFT:` section (present only if any drift found)
    - For each drifted construct, check for `DECISION_REQUIRED: true`:
-     - **If DECISION_REQUIRED: true** → do NOT auto-fix. Ask the user:
+     - **If DECISION_REQUIRED: true and YOLO_MODE = false** → do NOT auto-fix. Ask the user:
        > "**[construct name]** has [describe what was found] that is not in the model. Reason: [DECISION_REASON]. What should I do?
-       > (A) Add it to the model first — switch to modeling phase
+       > (A) Add it to the model — I'll update the .mfd file now and treat the code as correct
        > (B) Remove it from the code — aligns to current model"
-       Wait for the user's answer before continuing to the next batch. If user chooses (B), apply the removal and add to re-verification list. If (A), pause the implementation phase.
+       Wait for the user's answer before continuing to the next batch. If user chooses (A), update the model (edit the .mfd file, run `mfd_validate`, treat as conforming). If user chooses (B), apply the removal and add to re-verification list.
+     - **If DECISION_REQUIRED: true and YOLO_MODE = true** → apply Yolo Decision Policy from Step 2.5 and continue without pausing.
      - **If no DECISION_REQUIRED** → standard flow:
        - Read the file mentioned in `FILE`
        - Apply the fix described in `FIX` (fixes target **CODE**, never the model)
@@ -203,16 +233,21 @@ Process the **entire priority queue** in batches of 5, from first to last. The l
 ```
 ## MFD Council — Implementation Review
 
+**Mode:** Normal | Yolo
 **Constructs verified:** 12
 **Files checked:** 8
 **Batches processed:** 3
 **@verified updated:** 12 constructs marked with @verified(N)
 
-| Construct         | File                        | Status       | @verified    |
-|-------------------|-----------------------------|--------------|--------------|
-| entity User       | src/models/user.ts          | Conforming   | @verified(1) |
-| flow create_order | src/services/order.ts       | Fixed → OK   | @verified(1) |
-| api REST /orders  | src/routes/orders.ts        | Conforming   | @verified(2) |
+| Construct         | File                        | Status              | @verified    |
+|-------------------|-----------------------------|---------------------|--------------|
+| entity User       | src/models/user.ts          | Conforming          | @verified(1) |
+| flow create_order | src/services/order.ts       | Fixed → OK          | @verified(1) |
+| entity Result     | src/types.ts                | [YOLO] Model updated| @verified(1) |
+| api REST /orders  | src/routes/orders.ts        | Conforming          | @verified(2) |
+
+**Yolo decisions:** (only in Yolo mode — list each autonomous model update with reason)
+  - entity CommandResult: added `executed_at?: datetime` — timestamp of agent execution, actively used in CommandLog
 
 **Result:** All code conforms to model after 1 fix. @verified updated on all constructs.
 ```
