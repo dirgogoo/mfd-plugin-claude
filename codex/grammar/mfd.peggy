@@ -865,9 +865,9 @@ PathValue
     return { kind: "string", value: path };
   }
 
-// Relative paths like src/models/user.ts, app/api/route.ts
+// Relative paths like src/models/user.ts, mmp-central/src/auth/dto.ts
 RelativePathValue
-  = first:IdentifierRaw "/" rest:$([a-zA-Z0-9_\-/{}.:]* ) {
+  = first:$([a-zA-Z_][a-zA-Z0-9_\-]*) "/" rest:$([a-zA-Z0-9_\-/{}.:]* ) {
     return { kind: "string", value: first + "/" + rest };
   }
 
