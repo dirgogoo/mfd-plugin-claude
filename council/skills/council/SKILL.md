@@ -152,13 +152,13 @@ If `list-pending` returns empty (all constructs verified above threshold), still
 
 ### Step I2: Batched Review Loop
 
-**CRITICAL — SEQUENTIAL EXECUTION:** Batches MUST be processed one at a time, in order. **NEVER dispatch multiple batches in parallel.** The reason: each batch must complete, be marked, and have drift fixed before the next batch starts. Parallelizing batches defeats the entire purpose of immediate marking.
+**CRITICAL: This loop is SEQUENTIAL. Do NOT parallelize batches. Each batch must fully complete — subagent returned, constructs marked — before the next batch begins.**
 
-Divide the full priority queue into groups of 5. **ALL constructs in the priority queue must be reviewed** — there is no cap on the number of batches. If there are 161 constructs, that is ~33 batches. Process every single one.
+Sort the priority queue ascending by `verifiedCount`. For constructs with equal `verifiedCount`, sort alphabetically by construct name (e.g. `api REST` < `entity User` < `flow create_order`). Do NOT invent other ordering heuristics (do not use "recently modified", "highest risk", or any subjective criterion).
 
-Track a `batchCount` counter starting at 1.
+Process the **entire priority queue** in batches of 5, from first to last. The loop ends when every construct in the queue has been reviewed — there is no fixed limit on how many batches run. Track a `batchCount` counter starting at 1.
 
-**For each batch (one at a time, sequentially):**
+**For each batch:**
 
 **a) Dispatch 1 subagent** (`subagent_type: "general-purpose"`, `model: "sonnet"`):
 
@@ -171,7 +171,7 @@ Track a `batchCount` counter starting at 1.
   - Instruction: review ONLY the provided constructs, not all @impl constructs found via mfd_trace
 - **NEVER use `subagent_type: "code-reviewer"`** — use `general-purpose` only.
 
-**b) Wait for this subagent to return. Do NOT start the next batch yet.**
+**b) Wait for the subagent to return. Do not start the next batch until this one is done.**
 
 **c) Immediately after the subagent returns** — regardless of overall VERDICT:
 
@@ -186,11 +186,11 @@ Track a `batchCount` counter starting at 1.
      - Call `mfd_verify({ file: "<path>", action: "strip", construct: "<NAME>" })` to remove any existing @verified
      - Add the construct to a **re-verification list**
 
-**d)** Increment `batchCount`. Only then move to the next batch.
+**d)** Increment `batchCount`. Continue to the next batch of 5.
 
-**e) Re-verification pass:** After ALL batches have been processed, if the re-verification list is non-empty, process those constructs through the same sequential batched loop (batches of 5). Apply same immediate marking logic. This counts as additional batches toward `batchCount`.
+**e) Re-verification pass:** After the entire queue is processed, if the re-verification list is non-empty, process those constructs through the same sequential batched loop (batches of 5, sorted alphabetically). Apply same immediate marking logic. This counts as additional batches toward `batchCount`.
 
-**Safety limit (per-construct, not per-session):** Each individual construct may be re-verified at most 5 times total across all passes. If a specific construct still drifts after 5 attempts, skip it and report as "unresolved drift". This limit does NOT cap the number of batches — it only prevents infinite loops on a single construct.
+**Per-construct safety limit:** Track how many times each individual construct has been through a re-verification pass. If a specific construct has been re-verified 5 times and still drifts, skip it and report it as "unresolved drift". This limit is per-construct — it does NOT cap the total number of batches.
 
 ### Step I3: Final Report (Implementation)
 
