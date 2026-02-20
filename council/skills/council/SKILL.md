@@ -175,15 +175,15 @@ From `mfd_trace`, extract the list of constructs with `@impl` and their file pat
 
 If no constructs have `@impl`, report "No @impl decorators found — nothing to verify" and exit.
 
-From `mfd_verify list-pending` (threshold=100 returns all constructs with their `verifiedCount`), build a **priority queue**: sort all @impl constructs ascending by `verifiedCount` (0 = never verified comes first, then 1, then 2...).
+From `mfd_verify list-pending`, the returned `pending` array is **already sorted** by `verifiedCount` ascending, then alphabetically by name — this is the ready-to-use priority queue. Use it in order as returned; do not re-sort.
 
-If `list-pending` returns empty (all constructs verified above threshold), still proceed — re-verification is valid; treat all constructs as verifiedCount=0 for ordering purposes.
+If `list-pending` returns empty (all constructs verified above threshold), still proceed — re-verification is valid; call `mfd_trace` to get the full @impl list and use it as the queue (alphabetical order).
 
 ### Step I2: Batched Review Loop
 
 **CRITICAL: This loop is SEQUENTIAL. Do NOT parallelize batches. Each batch must fully complete — subagent returned, constructs marked — before the next batch begins.**
 
-Sort the priority queue ascending by `verifiedCount`. For constructs with equal `verifiedCount`, sort alphabetically by construct name (e.g. `api REST` < `entity User` < `flow create_order`). Do NOT invent other ordering heuristics (do not use "recently modified", "highest risk", or any subjective criterion).
+**Use the priority queue exactly as returned by `mfd_verify list-pending`** — it is already sorted by verifiedCount ascending, then name alphabetically. Do NOT re-sort, do NOT reorder by "recently modified", "highest risk", or any subjective criterion.
 
 Process the **entire priority queue** in batches of 5, from first to last. The loop ends when every construct in the queue has been reviewed — there is no fixed limit on how many batches run. Track a `batchCount` counter starting at 1.
 

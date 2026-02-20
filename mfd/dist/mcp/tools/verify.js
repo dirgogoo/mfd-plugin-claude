@@ -235,6 +235,8 @@ function handleListPending(args) {
             }
         }
     }
+    // Sort by verifiedCount ascending (lowest first = highest priority), then alphabetically by name
+    pending.sort((a, b) => a.verifiedCount - b.verifiedCount || a.name.localeCompare(b.name));
     const withImpl = allTrackable.reduce((sum, { items }) => sum + items.filter((i) => i.decorators?.some((d) => d.name === "impl")).length, 0);
     return {
         content: [{
@@ -245,6 +247,7 @@ function handleListPending(args) {
                         withImpl,
                         pct: withImpl > 0 ? Math.round(((withImpl - pending.length) / withImpl) * 100) : 0,
                         threshold,
+                        sorted_by: "verifiedCount asc, name asc",
                     },
                     pending,
                 }, null, 2),
