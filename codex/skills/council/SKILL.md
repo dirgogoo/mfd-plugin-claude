@@ -71,22 +71,22 @@ Each subagent receives:
 
 Dispatch all 3 simultaneously:
 
-1. **Architect Reviewer** — `architect-reviewer` subagent type
+1. **Architect Reviewer** — `general-purpose` subagent type
    - Read the architect prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/architect.md`
    - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
    - Task prompt: Include both prompts + the .mfd file path + instruct to use MFD MCP tools and return verdict
 
-2. **Backend Reviewer** — `backend-developer` subagent type
+2. **Backend Reviewer** — `general-purpose` subagent type
    - Read the backend prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/backend.md`
    - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
    - Task prompt: Include both prompts + the .mfd file path + instruct to use MFD MCP tools and return verdict
 
-3. **Fullstack Reviewer** — `fullstack-developer` subagent type
+3. **Fullstack Reviewer** — `general-purpose` subagent type
    - Read the fullstack prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/fullstack.md`
    - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
    - Task prompt: Include both prompts + the .mfd file path + instruct to use MFD MCP tools and return verdict
 
-**IMPORTANT:** Read the prompt files BEFORE dispatching subagents. Include the full prompt content in each Task call so subagents have the complete instructions. Subagents inherit MCP tools and can call `mfd_contract`, `mfd_query`, etc. directly.
+**IMPORTANT:** Read the prompt files BEFORE dispatching subagents. Include the full prompt content in each Task call so subagents have the complete instructions. Use `general-purpose` (not typed agents) so subagents have access to ALL tools including MFD MCP tools (`mfd_contract`, `mfd_query`, `mfd_validate`, `mfd_stats`, `mfd_render`, `mfd_verify`).
 
 **MODEL:** Always use `model: "sonnet"` for all subagents. Do NOT use haiku — council reviews require the depth of Sonnet 4.6.
 
@@ -149,7 +149,7 @@ For each iteration:
 
 **a) Dispatch 1 subagent:**
 
-- **Code Reviewer** — `code-reviewer` subagent type, `model: "sonnet"`
+- **Code Reviewer** — `general-purpose` subagent type, `model: "sonnet"`
   - Read the code-review prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/code-review.md`
   - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
   - Task prompt: Include both prompts + the .mfd file path + the list of constructs with @impl paths + instruct to use MFD MCP tools and Read tool to compare code vs model
