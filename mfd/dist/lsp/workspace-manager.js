@@ -41,7 +41,9 @@ export class WorkspaceManager {
         if (isNew) {
             this.discoverRoots(filePath);
         }
-        const affectedRoots = this.reverseGraph.get(filePath) ?? new Set();
+        // Snapshot before iterating — resolve() mutates the reverseGraph sets,
+        // which would cause the live Set iterator to revisit elements infinitely.
+        const affectedRoots = [...(this.reverseGraph.get(filePath) ?? [])];
         for (const rootPath of affectedRoots) {
             if (rootPath !== filePath) {
                 this.resolve(rootPath); // re-resolve from disk
