@@ -23,6 +23,8 @@ export class WorkspaceManager {
                 this.reverseGraph.get(fp).delete(filePath);
             }
             for (const includedPath of result.files) {
+                if (includedPath === filePath)
+                    continue; // don't add file to its own reverseGraph
                 if (!this.reverseGraph.has(includedPath)) {
                     this.reverseGraph.set(includedPath, new Set());
                 }
