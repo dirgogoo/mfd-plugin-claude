@@ -67,8 +67,6 @@ export class WorkspaceManager {
                     const candidate = join(scanDir, f);
                     if (candidate === filePath)
                         continue;
-                    if (this.resolvedCache.has(candidate))
-                        continue;
                     try {
                         const content = readFileSync(candidate, "utf-8");
                         // Only resolve files that have import/include statements (likely roots)
