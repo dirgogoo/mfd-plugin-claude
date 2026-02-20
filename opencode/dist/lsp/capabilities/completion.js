@@ -127,7 +127,7 @@ export function getCompletions(params, docManager) {
 function needsParens(decorator) {
     const withParams = [
         "version", "status", "format", "min", "max",
-        "rate_limit", "cache", "prefix", "impl", "tests",
+        "rate_limit", "cache", "prefix", "impl", "tests", "verified",
         "requires", "rotation", "provider", "type", "layout", "persona",
     ];
     return withParams.includes(decorator);

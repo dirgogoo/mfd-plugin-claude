@@ -93,6 +93,13 @@ export function renderTestsChip(decorators) {
     const val = String(testsDec.params[0]?.value ?? "");
     return `<span class="scope-chip ${val === 'unit' || val === 'integration' || val === 'e2e' ? 'done' : 'wip'}">${escapeHtml(val)}</span>`;
 }
+export function renderVerifiedChip(decorators) {
+    const verifiedDec = decorators?.find((d) => d.name === "verified");
+    if (!verifiedDec)
+        return "";
+    const count = verifiedDec.params[0] ? String(verifiedDec.params[0].value) : "1";
+    return `<span class="scope-chip verified" title="Verified ${count} time(s) by council">✓ verified(${escapeHtml(count)})</span>`;
+}
 export function renderDecoratorChips(decorators) {
     if (!decorators?.length)
         return "";

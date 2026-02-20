@@ -51,9 +51,11 @@ export interface CompletenessStats {
     withStatus: number;
     withImpl: number;
     withTests: number;
+    withVerified: number;
     statusPct: number;
     implPct: number;
     testsPct: number;
+    verifiedPct: number;
 }
 export interface ComponentCompleteness {
     name: string;
@@ -63,11 +65,14 @@ export interface ComponentCompleteness {
         name: string;
         impl: string[];
         tests: string | null;
+        verified: string | null;
     }[];
     implDone: number;
     implTotal: number;
     testsDone: number;
     testsTotal: number;
+    verifiedDone: number;
+    verifiedTotal: number;
 }
 export interface ModelStats {
     counts: ConstructCounts;

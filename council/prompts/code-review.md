@@ -94,3 +94,19 @@ Read file_path="<caminho @impl>"
 ## Formato de Resposta
 
 Siga EXATAMENTE o formato definido no council-protocol.md (VERDICT: CONFORMING | DRIFT_FOUND + PERSPECTIVE: Code Review).
+
+## Rastreamento de @verified
+
+Para permitir que o orquestrador saiba quais construtos marcar com @verified, inclua ao final do seu veredicto:
+
+- Se CONFORMING: liste todos os construtos verificados como conformes:
+  ```
+  CONFORMING_CONSTRUCTS:
+    - entity User
+    - flow create_order
+    - api REST
+  ```
+
+- Se DRIFT_FOUND: o campo CONSTRUCT em cada DRIFT item ja identifica o construto com drift. O orquestrador remove @verified desses construtos e re-verifica apos os fixes.
+
+Regra: inclua CONFORMING_CONSTRUCTS SEMPRE que VERDICT: CONFORMING, mesmo que todos os construtos estejam conformes.

@@ -153,15 +153,18 @@ export function computeStats(model, source) {
     const withStatus = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "status")).length;
     const withImpl = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "impl")).length;
     const withTests = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "tests")).length;
+    const withVerified = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "verified")).length;
     const pct = (n, t) => (t === 0 ? 0 : Math.round((n / t) * 100));
     const completeness = {
         total: allConstructs.length,
         withStatus,
         withImpl,
         withTests,
+        withVerified,
         statusPct: pct(withStatus, allConstructs.length),
         implPct: pct(withImpl, allConstructs.length),
         testsPct: pct(withTests, allConstructs.length),
+        verifiedPct: pct(withVerified, allConstructs.length),
     };
     // Per-component completeness
     const componentCompleteness = model.components.map((comp) => {
@@ -185,11 +188,16 @@ export function computeStats(model, source) {
                     name: item.name ?? "(anonymous)",
                     impl: getDecoratorValues(item.decorators, "impl"),
                     tests: getDecoratorValue(item.decorators, "tests"),
+                    verified: getDecoratorValue(item.decorators, "verified"),
                 });
             }
         }
         const implDone = constructs.filter((c) => c.impl.length > 0).length;
         const testsDone = constructs.filter((c) => c.tests !== null).length;
+        // verifiedDone: constructs that are both implemented AND verified
+        const verifiedDone = constructs.filter((c) => c.verified !== null && c.impl.length > 0).length;
+        // verifiedTotal: only implemented constructs are candidates for verification
+        const verifiedTotal = implDone;
         return {
             name: comp.name,
             status,
@@ -198,6 +206,8 @@ export function computeStats(model, source) {
             implTotal: constructs.length,
             testsDone,
             testsTotal: constructs.length,
+            verifiedDone,
+            verifiedTotal,
         };
     });
     return {

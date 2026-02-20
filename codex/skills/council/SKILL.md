@@ -157,12 +157,18 @@ For each iteration:
 **b) Evaluate verdict:**
 
 - If `VERDICT: CONFORMING` → **All code aligns with model.** Proceed to final report.
+  - Parse the `CONFORMING_CONSTRUCTS:` section from the subagent's response
+  - For each construct in CONFORMING_CONSTRUCTS, extract the name (last word of each line, e.g. `entity User` → `User`)
+  - Call `mfd_verify({ file: "<path>", action: "mark", construct: "<CONSTRUCT_NAME>" })`
+  - This increments @verified(N) to @verified(N+1) as evidence of council approval
 - If `VERDICT: DRIFT_FOUND`:
-  1. For each drift item:
+  1. For each drift item (each CONSTRUCT in the DRIFT section):
      - Read the file mentioned in `FILE`
      - Apply the fix described in `FIX`
      - The fix targets the **CODE**, never the model
+     - Call `mfd_verify({ file: "<path>", action: "strip", construct: "<CONSTRUCT_NAME>" })` to remove any existing @verified
   2. After all fixes, re-run the subagent to verify
+  3. On re-verification: if CONFORMING, call `mfd_verify mark` for each previously-drifted construct
 
 **c) Safety limit:** Maximum 5 iterations. If drift persists after 5 iterations, report remaining drift to the user.
 
@@ -174,14 +180,15 @@ For each iteration:
 **Constructs verified:** 12
 **Files checked:** 8
 **Iterations:** 2
+**@verified updated:** 12 constructs marked with @verified(N)
 
-| Construct         | File                        | Status     |
-|-------------------|-----------------------------|------------|
-| entity User       | src/models/user.ts          | Conforming |
-| flow create_order | src/services/order.ts       | Fixed (1)  |
-| api REST /orders  | src/routes/orders.ts        | Conforming |
+| Construct         | File                        | Status       | @verified |
+|-------------------|-----------------------------|--------------|-----------|
+| entity User       | src/models/user.ts          | Conforming   | @verified(1) |
+| flow create_order | src/services/order.ts       | Fixed → OK   | @verified(1) |
+| api REST /orders  | src/routes/orders.ts        | Conforming   | @verified(2) |
 
-**Result:** All code conforms to model after 1 fix.
+**Result:** All code conforms to model after 1 fix. @verified updated on all constructs.
 ```
 
 ## Notes

@@ -6,6 +6,7 @@ import { diffCommand } from "./commands/diff.js";
 import { statsCommand } from "./commands/stats.js";
 import { initCommand } from "./commands/init.js";
 import { splitCommand } from "./commands/split.js";
+import { stripVerifiedCommand } from "./commands/strip-verified.js";
 const program = new Command();
 program
     .name("mfd")
@@ -48,5 +49,10 @@ program
     .option("-o, --output <dir>", "Output directory", "model")
     .option("--dry-run", "Show plan without writing files")
     .action(splitCommand);
+program
+    .command("strip-verified <file>")
+    .description("Strip @verified decorators from an MFD file (all, or only changed constructs when --baseline is provided)")
+    .option("-b, --baseline <file>", "Baseline file for diff-based stripping (only strip constructs that changed)")
+    .action((file, opts) => stripVerifiedCommand(file, { baseline: opts.baseline }));
 program.parse();
 //# sourceMappingURL=index.js.map

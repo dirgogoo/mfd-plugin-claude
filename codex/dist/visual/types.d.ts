@@ -29,6 +29,8 @@ export interface ComponentInfo {
     constructCounts: Record<string, number>;
     implDone: number;
     implTotal: number;
+    verifiedDone: number;
+    verifiedTotal: number;
 }
 export interface ModelSnapshot {
     systemName: string;

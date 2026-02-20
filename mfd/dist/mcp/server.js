@@ -8,7 +8,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleTestContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
+import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleTestContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVerify, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
 import { handleListResources, handleReadResource, } from "./resources/index.js";
 const server = new Server({
     name: "mfd-tools",
@@ -353,6 +353,47 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             },
         },
         {
+            name: "mfd_verify",
+            description: "Model verification tracker using @verified decorator. mark: increments @verified(N) on a construct (council approval). strip: removes @verified from a construct (drift found). strip-all: removes ALL @verified from a file (after any edit). list-pending: lists constructs with @impl but @verified absent or below threshold. mark-from-file: suggests which constructs a code file likely implements (for @impl tracking).",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file: {
+                        type: "string",
+                        description: "Path to the .mfd file",
+                    },
+                    action: {
+                        type: "string",
+                        enum: ["mark", "strip", "strip-all", "list-pending", "mark-from-file"],
+                        description: "Action to perform",
+                    },
+                    construct: {
+                        type: "string",
+                        description: "Construct name (required for mark/strip)",
+                    },
+                    component: {
+                        type: "string",
+                        description: "Filter by component name (for list-pending/mark-from-file)",
+                    },
+                    threshold: {
+                        type: "number",
+                        description: "Minimum @verified count for list-pending (default: 1 = any without @verified)",
+                        default: 1,
+                    },
+                    codePath: {
+                        type: "string",
+                        description: "Code file path for mark-from-file heuristic matching",
+                    },
+                    resolve_includes: {
+                        type: "boolean",
+                        description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                },
+                required: ["file", "action"],
+            },
+        },
+        {
             name: "mfd_prompt",
             description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao, arquitetura, boas-praticas, brownfield, testes.",
             inputSchema: {
@@ -472,6 +513,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request, _extra) => {
                 return handleDiff(args);
             case "mfd_trace":
                 return handleTrace(args);
+            case "mfd_verify":
+                return handleVerify(args);
             case "mfd_prompt":
                 return handlePrompt(args);
             case "mfd_visual_start":

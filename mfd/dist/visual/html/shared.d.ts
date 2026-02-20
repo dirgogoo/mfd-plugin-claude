@@ -14,6 +14,7 @@ export declare function componentLink(name: string): string;
 export declare function renderImplChip(decorators: any[] | undefined): string;
 export declare function renderStatusChip(decorators: any[] | undefined): string;
 export declare function renderTestsChip(decorators: any[] | undefined): string;
+export declare function renderVerifiedChip(decorators: any[] | undefined): string;
 export declare function renderDecoratorChips(decorators: any[] | undefined): string;
 /**
  * Build a map from entity/enum name → component name.

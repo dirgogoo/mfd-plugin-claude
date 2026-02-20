@@ -14,6 +14,8 @@ const KNOWN_DECORATORS = {
     // Implementation
     impl: { params: "path_list" },
     tests: { params: "path_list" },
+    // Verification — @verified(N) where N >= 1, or @verified (defaults to 1)
+    verified: { params: "number_opt" },
     // API
     rate_limit: { params: "rate" },
     cache: { params: "duration" },
@@ -126,13 +128,35 @@ export function decoratorValidation(doc) {
                 location: deco.loc,
             });
         }
-        if (spec.params !== "none" && spec.params !== "path_list" && deco.params.length === 0) {
+        if (spec.params !== "none" && spec.params !== "path_list" && spec.params !== "number_opt" && deco.params.length === 0) {
             diagnostics.push({
                 code: "DECORATOR_INVALID",
                 severity: "warning",
                 message: `Decorator '@${deco.name}' expects ${PARAM_DESCRIPTIONS[spec.params] || "a parameter"}`,
                 location: deco.loc,
             });
+        }
+        // Validate @verified — optional integer param, must be >= 1 if provided
+        if (deco.name === "verified" && deco.params.length > 0) {
+            const param = deco.params[0];
+            const numVal = param.kind === "number" ? Number(param.value) : null;
+            if (numVal === null) {
+                diagnostics.push({
+                    code: "DECORATOR_INVALID",
+                    severity: "warning",
+                    message: `@verified expects an integer parameter, e.g. @verified(1)`,
+                    location: deco.loc,
+                });
+            }
+            else if (!Number.isInteger(numVal) || numVal < 1) {
+                diagnostics.push({
+                    code: "DECORATOR_INVALID_VALUE",
+                    severity: "warning",
+                    message: `@verified(${param.value}) must be an integer >= 1`,
+                    location: deco.loc,
+                    help: `Use @verified(1), @verified(2), etc.`,
+                });
+            }
         }
         // Validate @status values
         if (deco.name === "status" && deco.params.length > 0) {
@@ -239,6 +263,18 @@ export function decoratorValidation(doc) {
                 message: "A construct cannot be both @abstract and @interface",
                 location: loc,
                 help: "Use @abstract for base constructs with partial implementation, @interface for pure contracts",
+            });
+        }
+        // VERIFIED_WITHOUT_IMPL: @verified without @impl on same construct
+        const hasVerified = decos.some((d) => d.name === "verified");
+        const hasImpl = decos.some((d) => d.name === "impl");
+        if (hasVerified && !hasImpl) {
+            diagnostics.push({
+                code: "VERIFIED_WITHOUT_IMPL",
+                severity: "warning",
+                message: "@verified requires @impl on the same construct",
+                location: decos.find((d) => d.name === "verified").loc,
+                help: "Add @impl(path/to/file.ts) before @verified to track the implementation file",
             });
         }
         // DECORATOR_INVALID_TARGET: @abstract/@interface on unsupported constructs

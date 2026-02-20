@@ -28,8 +28,10 @@ export function renderDashboard(snapshot) {
     const totalConstructs = completeness.total;
     const implDone = completeness.withImpl;
     const testsDone = completeness.withTests;
+    const verifiedDone = completeness.withVerified;
     const implPct = completeness.implPct;
     const testsPct = completeness.testsPct;
+    const verifiedPct = completeness.verifiedPct;
     // --- Component rows with ASCII bars ---
     const compRows = comps.map((comp) => {
         const iPct = comp.implTotal > 0 ? Math.round((comp.implDone / comp.implTotal) * 100) : 0;
@@ -84,7 +86,7 @@ export function renderDashboard(snapshot) {
 <div class="dash-cli">
   <div class="dash-header">
     <span class="dash-title">PROGRESS</span>
-    <span class="dash-summary">${totalConstructs} constructs │ impl ${implDone}/${totalConstructs} (${implPct}%) │ tests ${testsDone}/${totalConstructs} (${testsPct}%)</span>
+    <span class="dash-summary">${totalConstructs} constructs │ impl ${implDone}/${totalConstructs} (${implPct}%) │ tests ${testsDone}/${totalConstructs} (${testsPct}%) │ verified ${verifiedDone}/${implDone} (${verifiedPct}%)</span>
   </div>
 
   <div class="dash-global-bars">
@@ -97,6 +99,11 @@ export function renderDashboard(snapshot) {
       <span class="dash-global-label">tests</span>
       <span class="dash-bar">${asciiBar(testsPct, 30)}</span>
       <span class="dash-pct"> ${testsPct}%</span>
+    </div>
+    <div class="dash-global-row">
+      <span class="dash-global-label">veri </span>
+      <span class="dash-bar">${asciiBar(verifiedPct, 30)}</span>
+      <span class="dash-pct"> ${verifiedPct}%</span>
     </div>
   </div>
 

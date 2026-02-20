@@ -235,9 +235,11 @@ function buildComponentInfos(model, stats, constructComponentMap) {
         const compStats = stats.componentCompleteness.find((cs) => cs.name === comp.name);
         const implDone = compStats?.implDone ?? 0;
         const implTotal = compStats?.implTotal ?? 0;
+        const verifiedDone = compStats?.verifiedDone ?? 0;
+        const verifiedTotal = compStats?.verifiedTotal ?? 0;
         // If stats reports 0 but we have constructs, use construct count as total
         const effectiveTotal = implTotal > 0 ? implTotal : Object.values(counts).reduce((sum, n) => sum + n, 0);
-        return { name: comp.name, status, constructCounts: counts, implDone, implTotal: effectiveTotal };
+        return { name: comp.name, status, constructCounts: counts, implDone, implTotal: effectiveTotal, verifiedDone, verifiedTotal };
     });
 }
 //# sourceMappingURL=data.js.map

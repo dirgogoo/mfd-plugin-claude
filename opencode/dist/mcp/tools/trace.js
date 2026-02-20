@@ -58,6 +58,7 @@ function handleRead(args) {
             const decorators = item.decorators ?? [];
             const implDeco = decorators.find((d) => d.name === "impl");
             const testsDeco = decorators.find((d) => d.name === "tests");
+            const verifiedDeco = decorators.find((d) => d.name === "verified");
             const implPaths = [];
             if (implDeco) {
                 for (const p of implDeco.params) {
@@ -74,6 +75,9 @@ function handleRead(args) {
                         testsPaths.push(val);
                 }
             }
+            const verifiedCount = verifiedDeco
+                ? (verifiedDeco.params[0] ? parseInt(String(verifiedDeco.params[0].value), 10) || 1 : 1)
+                : null;
             // Check if files exist (both @impl and @tests paths)
             const fileStatus = {};
             for (const p of implPaths) {
@@ -87,7 +91,7 @@ function handleRead(args) {
                     fileStatus[p] = existsSync(fullPath);
                 }
             }
-            entries.push({ type, name, component, impl: implPaths, tests: testsPaths, fileStatus });
+            entries.push({ type, name, component, impl: implPaths, tests: testsPaths, verified: verifiedCount, fileStatus });
         }
     }
     // Also check APIs
@@ -101,6 +105,7 @@ function handleRead(args) {
         const decorators = api.decorators ?? [];
         const implDeco = decorators.find((d) => d.name === "impl");
         const testsDeco = decorators.find((d) => d.name === "tests");
+        const verifiedDeco = decorators.find((d) => d.name === "verified");
         const implPaths = [];
         if (implDeco) {
             for (const p of implDeco.params) {
@@ -117,6 +122,9 @@ function handleRead(args) {
                     testsPaths.push(val);
             }
         }
+        const verifiedCount = verifiedDeco
+            ? (verifiedDeco.params[0] ? parseInt(String(verifiedDeco.params[0].value), 10) || 1 : 1)
+            : null;
         const fileStatus = {};
         for (const p of implPaths) {
             const fullPath = resolve(projectRoot, p);
@@ -128,12 +136,13 @@ function handleRead(args) {
                 fileStatus[p] = existsSync(fullPath);
             }
         }
-        entries.push({ type: "api", name, component, impl: implPaths, tests: testsPaths, fileStatus });
+        entries.push({ type: "api", name, component, impl: implPaths, tests: testsPaths, verified: verifiedCount, fileStatus });
     }
     const total = entries.length;
     const implemented = entries.filter(e => e.impl.length > 0).length;
     const pending = total - implemented;
     const tested = entries.filter(e => e.tests.length > 0).length;
+    const verified = entries.filter(e => e.verified !== null).length;
     const missingFiles = entries.reduce((count, e) => {
         return count + Object.values(e.fileStatus).filter(v => !v).length;
     }, 0);
@@ -143,8 +152,10 @@ function handleRead(args) {
             implemented,
             pending,
             tested,
+            verified,
             missingFiles,
             implPct: total > 0 ? Math.round((implemented / total) * 100) : 0,
+            verifiedPct: implemented > 0 ? Math.round((verified / implemented) * 100) : 0,
         },
         entries,
     };

@@ -193,11 +193,15 @@ export function statsCommand(file, options) {
     const withStatus = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "status")).length;
     const withImpl = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "impl")).length;
     const withTests = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "tests")).length;
+    const withVerified = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "verified")).length;
     if (allConstructs.length > 0) {
         console.log(`\nCompleteness:`);
-        console.log(`  @status: ${withStatus}/${allConstructs.length} (${pct(withStatus, allConstructs.length)})`);
-        console.log(`  @impl:   ${withImpl}/${allConstructs.length} (${pct(withImpl, allConstructs.length)})`);
-        console.log(`  @tests:  ${withTests}/${allConstructs.length} (${pct(withTests, allConstructs.length)})`);
+        console.log(`  @status:   ${withStatus}/${allConstructs.length} (${pct(withStatus, allConstructs.length)})`);
+        console.log(`  @impl:     ${withImpl}/${allConstructs.length} (${pct(withImpl, allConstructs.length)})`);
+        console.log(`  @tests:    ${withTests}/${allConstructs.length} (${pct(withTests, allConstructs.length)})`);
+        if (withImpl > 0) {
+            console.log(`  @verified: ${withVerified}/${withImpl} (${pct(withVerified, withImpl)}) of implemented`);
+        }
     }
 }
 function pct(n, total) {

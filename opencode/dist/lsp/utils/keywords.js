@@ -45,6 +45,7 @@ export const COMMON_DECORATORS = [
     "prefix",
     "impl",
     "tests",
+    "verified",
     "requires",
     "rotation",
     "provider",
