@@ -39,8 +39,11 @@ export class WorkspaceManager {
     invalidate(filePath, liveText) {
         const isNew = !this.resolvedCache.has(filePath);
         this.resolve(filePath, liveText);
-        // On first open: scan sibling directory for root files that might import this one
-        if (isNew) {
+        // Run discoverRoots when first seen OR when no parent root is known yet.
+        // Handles the case where a file was created before its root existed (e.g. auth.mfd
+        // created after main.mfd was already cached without knowing about auth.mfd).
+        const noParents = !this.reverseGraph.get(filePath)?.size;
+        if (isNew || noParents) {
             this.discoverRoots(filePath);
         }
         // Snapshot before iterating — resolve() mutates the reverseGraph sets,
