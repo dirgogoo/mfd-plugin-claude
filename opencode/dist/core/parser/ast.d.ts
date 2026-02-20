@@ -82,10 +82,15 @@ export interface SystemDecl extends BaseNode {
     decorators: Decorator[];
     body: SystemBodyItem[];
 }
-export type SystemBodyItem = IncludeDecl | ComponentDecl | SemanticComment | ErrorNode;
+export type SystemBodyItem = IncludeDecl | NodeDecl | ComponentDecl | SemanticComment | ErrorNode;
 export interface IncludeDecl extends BaseNode {
     type: "IncludeDecl";
     path: string;
+}
+export interface NodeDecl extends BaseNode {
+    type: "NodeDecl";
+    name: string;
+    decorators: Decorator[];
 }
 export interface ComponentDecl extends BaseNode {
     type: "ComponentDecl";
@@ -364,5 +369,5 @@ export interface MfdDocument extends BaseNode {
     type: "MfdDocument";
     body: TopLevelItem[];
 }
-export type TopLevelItem = SystemDecl | ComponentDecl | ElementDecl | EntityDecl | EnumDecl | FlowDecl | StateDecl | EventDecl | SignalDecl | ApiDecl | RuleDecl | DepDecl | SecretDecl | ScreenDecl | JourneyDecl | OperationDecl | ActionDecl | IncludeDecl | SemanticComment | ErrorNode;
+export type TopLevelItem = SystemDecl | ComponentDecl | NodeDecl | ElementDecl | EntityDecl | EnumDecl | FlowDecl | StateDecl | EventDecl | SignalDecl | ApiDecl | RuleDecl | DepDecl | SecretDecl | ScreenDecl | JourneyDecl | OperationDecl | ActionDecl | IncludeDecl | SemanticComment | ErrorNode;
 //# sourceMappingURL=ast.d.ts.map

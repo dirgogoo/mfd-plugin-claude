@@ -1,4 +1,4 @@
-import type { MfdDocument, SystemDecl, ComponentDecl, ElementDecl, EntityDecl, EnumDecl, FlowDecl, StateDecl, EventDecl, SignalDecl, ApiDecl, RuleDecl, DepDecl, SecretDecl, ScreenDecl, JourneyDecl, OperationDecl, ActionDecl } from "../parser/ast.js";
+import type { MfdDocument, SystemDecl, ComponentDecl, ElementDecl, EntityDecl, EnumDecl, FlowDecl, StateDecl, EventDecl, SignalDecl, ApiDecl, RuleDecl, DepDecl, SecretDecl, ScreenDecl, JourneyDecl, OperationDecl, ActionDecl, NodeDecl } from "../parser/ast.js";
 export interface CollectedModel {
     elements: ElementDecl[];
     entities: EntityDecl[];
@@ -17,6 +17,7 @@ export interface CollectedModel {
     journeys: JourneyDecl[];
     operations: OperationDecl[];
     actions: ActionDecl[];
+    nodes: NodeDecl[];
 }
 /**
  * Collect all constructs from a document recursively,

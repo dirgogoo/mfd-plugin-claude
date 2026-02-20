@@ -24,6 +24,7 @@ Escanear o codebase camada por camada, na ordem abaixo:
 | 6 | UI components | `**/components/**`, `**/pages/**`, `**/views/**`, `**/screens/**` | `screen`, `element`, `action` |
 | 7 | Config, env vars, deps | `.env*`, `docker-compose*`, `package.json` (dependencies), config files | `dep`, `secret` |
 | 8 | Directory structure = component boundaries | Top-level `src/` subdirs, monorepo packages, module dirs | `component` |
+| 9 | Deployment topology | `docker-compose*.yml`, `k8s/**`, `Dockerfile*`, `.github/workflows/**`, `fly.toml`, `render.yaml` | `node` |
 
 ### Adaptacao por Tech Stack
 
@@ -90,6 +91,14 @@ Escanear o codebase camada por camada, na ordem abaixo:
 - Dependencies em package.json/requirements.txt (apenas infra: DB, cache, queue) → `dep`
 - Variaveis de ambiente em `.env*` → `secret`
 
+### node
+- `docker-compose.yml` com grupos distintos de services → inferir nodes (ex: `edge-services`, `central-services`)
+- Docker Stack / Swarm com placement constraints (`constraints: [node.role == worker]`) → inferir nodes
+- Kubernetes namespaces distintos (`namespace: edge`, `namespace: cloud`) → inferir nodes
+- `fly.toml` / `render.yaml` com regioes distintas → inferir nodes
+- Monorepo com packages separados por ambiente de execucao (`apps/device/`, `apps/server/`) → inferir nodes
+- Se nao ha separacao clara de deployment targets → omitir `node` (single-node e o padrao)
+
 ### @impl — Pre-popular SEMPRE
 Cada construto extraido DEVE ter `@impl` apontando para o arquivo de origem. Este e o diferencial do brownfield — o modelo ja nasce rastreado.
 
@@ -126,6 +135,8 @@ Apos extracao, verificar:
 - [ ] Todo secret critico tem @required
 - [ ] Entidades gerenciadas ficam no componente gerenciador (Principio de Propriedade)
 - [ ] Nenhum componente e God Core (60%+ dos construtos centralizados)
+- [ ] Se sistema tem nos de deployment distintos, nodes declarados no system body
+- [ ] Componentes com `@node` referenciam node declarado (sem `NODE_UNRESOLVED`)
 
 ## Estrutura Multi-Arquivo
 

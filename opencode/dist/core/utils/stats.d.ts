@@ -6,6 +6,7 @@ import type { CollectedModel } from "../validator/collect.js";
 export interface ConstructCounts {
     systems: number;
     components: number;
+    nodes: number;
     elements: number;
     entities: number;
     enums: number;

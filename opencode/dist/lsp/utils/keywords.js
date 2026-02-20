@@ -1,6 +1,7 @@
 export const CONSTRUCT_KEYWORDS = [
     "system",
     "component",
+    "node",
     "entity",
     "enum",
     "flow",
@@ -53,6 +54,7 @@ export const COMMON_DECORATORS = [
     "type",
     "layout",
     "persona",
+    "node",
 ];
 export const STATUS_VALUES = [
     "active",

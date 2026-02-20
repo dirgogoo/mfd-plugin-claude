@@ -154,6 +154,7 @@ export function pageRoutes(getSnapshot) {
             element: "Element",
             action: "Action",
             signal: "Signal",
+            node: "Node",
         };
         const content = renderConstructDetail(snapshot, compName, type, itemName);
         return c.html(renderLayout(content, layoutOpts(snapshot, {

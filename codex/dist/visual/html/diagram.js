@@ -8,6 +8,7 @@ const LABELS = {
     flow: "Flow Diagram",
     screen: "Screen Map",
     journey: "User Journey",
+    deployment: "Deployment Topology",
 };
 export function renderDiagramPage(snapshot, type) {
     const mermaidCode = snapshot.diagrams[type];
@@ -40,6 +41,7 @@ function getCount(snapshot, type) {
         case "flow": return snapshot.model.flows.length;
         case "screen": return snapshot.model.screens.length;
         case "journey": return snapshot.model.journeys.length;
+        case "deployment": return snapshot.model.nodes.length;
     }
 }
 function escapeHtml(str) {

@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { getOrLoadTimeline } from "../git-timeline.js";
 import { renderComponentEntityDiagram, renderComponentStateDiagram, renderComponentFlowDiagram, renderComponentScreenDiagram, renderComponentJourneyDiagram, renderComponentDepDiagram, } from "../html/component-diagrams.js";
 const DIAGRAM_TYPES = [
-    "component", "entity", "state", "flow", "screen", "journey",
+    "component", "entity", "state", "flow", "screen", "journey", "deployment",
 ];
 export function apiRoutes(getSnapshot) {
     const app = new Hono();
@@ -272,6 +272,7 @@ function getConstructCount(snapshot, type) {
         case "flow": return snapshot.model.flows.length;
         case "screen": return snapshot.model.screens.length;
         case "journey": return snapshot.model.journeys.length;
+        case "deployment": return snapshot.model.nodes.length;
     }
 }
 //# sourceMappingURL=api.js.map

@@ -132,48 +132,61 @@ Display a summary table:
 
 List the changes made to the model (if any).
 
-## Phase: IMPLEMENTATION (1 Subagent, Loop Until Conforming)
+## Phase: IMPLEMENTATION (Batched Review, Priority Ordering, Immediate Marking)
 
-### Step I1: Gather Context
+### Step I1: Gather Context + Build Priority Queue
 
 ```
 mfd_contract file="<path>" compact=true resolve_includes=true
 mfd_trace file="<path>" resolve_includes=true
+mfd_verify file="<path>" action="list-pending" threshold=100 resolve_includes=true
 ```
 
 From `mfd_trace`, extract the list of constructs with `@impl` and their file paths.
 
 If no constructs have `@impl`, report "No @impl decorators found — nothing to verify" and exit.
 
-### Step I2: Review Loop
+From `mfd_verify list-pending` (threshold=100 returns all constructs with their `verifiedCount`), build a **priority queue**: sort all @impl constructs ascending by `verifiedCount` (0 = never verified comes first, then 1, then 2...).
 
-For each iteration:
+If `list-pending` returns empty (all constructs verified above threshold), still proceed — re-verification is valid; treat all constructs as verifiedCount=0 for ordering purposes.
 
-**a) Dispatch 1 subagent:**
+### Step I2: Batched Review Loop
 
-- **MFD Council — Implementation Inspector** (`subagent_type: "general-purpose"`, `model: "sonnet"`)
-  - Read the code-review prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/code-review.md`
-  - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
-  - Task prompt: Include both prompts + the .mfd file path + the list of constructs with @impl paths + instruct to use MFD MCP tools and Read tool to compare code vs model
-  - **NEVER use `subagent_type: "code-reviewer"`** — use `general-purpose` only.
+Process the priority queue in **batches of 5 constructs** (lowest verifiedCount first). Track a `batchCount` counter starting at 1.
 
-**b) Evaluate verdict:**
+**For each batch:**
 
-- If `VERDICT: CONFORMING` → **All code aligns with model.** Proceed to final report.
-  - Parse the `CONFORMING_CONSTRUCTS:` section from the subagent's response
-  - For each construct in CONFORMING_CONSTRUCTS, extract the name (last word of each line, e.g. `entity User` → `User`)
-  - Call `mfd_verify({ file: "<path>", action: "mark", construct: "<CONSTRUCT_NAME>" })`
-  - This increments @verified(N) to @verified(N+1) as evidence of council approval
-- If `VERDICT: DRIFT_FOUND`:
-  1. For each drift item (each CONSTRUCT in the DRIFT section):
+**a) Dispatch 1 subagent** (`subagent_type: "general-purpose"`, `model: "sonnet"`):
+
+- Read the code-review prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/code-review.md`
+- Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
+- Task prompt includes:
+  - Both prompts above
+  - The .mfd file path
+  - A `CONSTRUCTS_TO_REVIEW:` list with **only the constructs in this batch** (name + @impl file paths)
+  - Instruction: review ONLY the provided constructs, not all @impl constructs found via mfd_trace
+- **NEVER use `subagent_type: "code-reviewer"`** — use `general-purpose` only.
+
+**b) Wait for verdict.**
+
+**c) Immediately after the subagent returns** — regardless of overall VERDICT:
+
+1. Parse the `CONFORMING_CONSTRUCTS:` section (always present per updated code-review.md format)
+   - For each construct listed → call `mfd_verify({ file: "<path>", action: "mark", construct: "<NAME>" })` **right now** (do not defer to end)
+   - Extract construct name as the last word of each line (e.g. `entity User` → `User`)
+
+2. Parse the `DRIFT:` section (present only if any drift found)
+   - For each drifted construct:
      - Read the file mentioned in `FILE`
-     - Apply the fix described in `FIX`
-     - The fix targets the **CODE**, never the model
-     - Call `mfd_verify({ file: "<path>", action: "strip", construct: "<CONSTRUCT_NAME>" })` to remove any existing @verified
-  2. After all fixes, re-run the subagent to verify
-  3. On re-verification: if CONFORMING, call `mfd_verify mark` for each previously-drifted construct
+     - Apply the fix described in `FIX` (fixes target **CODE**, never the model)
+     - Call `mfd_verify({ file: "<path>", action: "strip", construct: "<NAME>" })` to remove any existing @verified
+     - Add the construct to a **re-verification list**
 
-**c) Safety limit:** Maximum 5 iterations. If drift persists after 5 iterations, report remaining drift to the user.
+**d)** Increment `batchCount`. Move to next batch.
+
+**e) Re-verification pass:** After all batches complete, if the re-verification list is non-empty, process those constructs through the same batched loop (batches of 5, sorted by name). Apply same immediate marking logic. This counts as additional batches toward `batchCount`.
+
+**Safety limit:** Max 5 iterations total per construct. Track per-construct iteration count; skip constructs that have reached 5 iterations and report them as "unresolved drift".
 
 ### Step I3: Final Report (Implementation)
 
@@ -182,11 +195,11 @@ For each iteration:
 
 **Constructs verified:** 12
 **Files checked:** 8
-**Iterations:** 2
+**Batches processed:** 3
 **@verified updated:** 12 constructs marked with @verified(N)
 
-| Construct         | File                        | Status       | @verified |
-|-------------------|-----------------------------|--------------|-----------|
+| Construct         | File                        | Status       | @verified    |
+|-------------------|-----------------------------|--------------|--------------|
 | entity User       | src/models/user.ts          | Conforming   | @verified(1) |
 | flow create_order | src/services/order.ts       | Fixed → OK   | @verified(1) |
 | api REST /orders  | src/routes/orders.ts        | Conforming   | @verified(2) |

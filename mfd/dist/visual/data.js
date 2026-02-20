@@ -12,7 +12,7 @@ import { resolveFile } from "../core/resolver/index.js";
 import { collectModel } from "../core/validator/collect.js";
 import { validate } from "../core/validator/index.js";
 import { computeStats } from "../core/utils/stats.js";
-import { renderComponentDiagram, renderEntityDiagram, renderStateDiagram, renderFlowDiagram, renderScreenDiagram, renderJourneyDiagram, } from "../mcp/tools/render.js";
+import { renderComponentDiagram, renderEntityDiagram, renderStateDiagram, renderFlowDiagram, renderScreenDiagram, renderJourneyDiagram, renderDeploymentDiagram, } from "../mcp/tools/render.js";
 import { computeRelationships } from "./relationships.js";
 import { buildConstructComponentMap, apiMapKey, declTypeToType, } from "../core/relationships/index.js";
 export function loadModelSnapshot(filePath, resolveIncludes = false) {
@@ -47,6 +47,7 @@ export function loadModelSnapshot(filePath, resolveIncludes = false) {
         flow: () => renderFlowDiagram(model),
         screen: () => renderScreenDiagram(model),
         journey: () => renderJourneyDiagram(model),
+        deployment: () => renderDeploymentDiagram(model),
     };
     const diagramCache = {};
     const diagrams = new Proxy(diagramCache, {

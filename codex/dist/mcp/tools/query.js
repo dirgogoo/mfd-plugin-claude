@@ -34,6 +34,7 @@ const TYPE_FILTER_MAP = {
     action: "actions",
     dep: "deps",
     secret: "secrets",
+    node: "nodes",
 };
 /**
  * Build a map from construct name to component name by walking the AST directly.
@@ -130,6 +131,14 @@ function filterCollectedModel(model, ownership, componentFilter, typeFilter, nam
             totalMatches += filtered.length;
             return filtered;
         })(),
+        nodes: (() => {
+            const targetKey = typeFilter ? TYPE_FILTER_MAP[typeFilter] : null;
+            if (targetKey && targetKey !== "nodes")
+                return [];
+            const filtered = model.nodes.filter(n => shouldInclude("nodes", n.name));
+            totalMatches += filtered.length;
+            return filtered;
+        })(),
         // Keep full collections for reference (not filtered)
         components: model.components,
         systems: model.systems,
@@ -177,6 +186,17 @@ export function handleQuery(args) {
         if (Array.isArray(value) && value.length > 0) {
             result[key] = value;
         }
+    }
+    // nodes are system-level constructs not in the contract — add separately
+    if (filteredModel.nodes.length > 0) {
+        result["nodes"] = filteredModel.nodes.map((n) => ({
+            name: n.name,
+            decorators: n.decorators.map((d) => {
+                if (d.params.length === 0)
+                    return `@${d.name}`;
+                return `@${d.name}(${d.params.map((p) => p.value).join(", ")})`;
+            }),
+        }));
     }
     return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

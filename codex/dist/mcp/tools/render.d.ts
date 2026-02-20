@@ -12,5 +12,6 @@ export declare function renderStateDiagram(model: Model): string;
 export declare function renderFlowDiagram(model: Model): string;
 export declare function renderScreenDiagram(model: Model): string;
 export declare function renderJourneyDiagram(model: Model): string;
+export declare function renderDeploymentDiagram(model: Model): string;
 export {};
 //# sourceMappingURL=render.d.ts.map

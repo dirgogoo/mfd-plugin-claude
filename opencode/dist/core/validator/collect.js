@@ -21,10 +21,14 @@ export function collectModel(doc) {
         journeys: [],
         operations: [],
         actions: [],
+        nodes: [],
     };
     function visit(items) {
         for (const item of items) {
             switch (item.type) {
+                case "NodeDecl":
+                    model.nodes.push(item);
+                    break;
                 case "SystemDecl":
                     model.systems.push(item);
                     visit(item.body);

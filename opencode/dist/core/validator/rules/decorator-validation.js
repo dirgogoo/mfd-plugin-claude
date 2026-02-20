@@ -41,6 +41,8 @@ const KNOWN_DECORATORS = {
     // Inheritance
     abstract: { params: "none" },
     interface: { params: "none" },
+    // Deployment topology
+    node: { params: "identifier" },
 };
 const VALID_STATUS = new Set(["modeling", "implementing", "production", "deprecated",
     "implemented", "in_progress", "pending", "verified"]);
@@ -342,6 +344,42 @@ export function decoratorValidation(doc) {
         checkDecorators(j.decorators, "JourneyDecl");
     for (const o of model.operations)
         checkDecorators(o.decorators, "OperationDecl");
+    for (const n of model.nodes)
+        checkDecorators(n.decorators, "NodeDecl");
+    // NODE_UNRESOLVED: @node(name) on component references an undeclared node
+    if (model.nodes.length > 0) {
+        const declaredNodes = new Set(model.nodes.map((n) => n.name));
+        for (const c of model.components) {
+            const nodeDeco = c.decorators.find((d) => d.name === "node");
+            if (nodeDeco && nodeDeco.params.length > 0) {
+                const nodeName = String(nodeDeco.params[0].value);
+                if (!declaredNodes.has(nodeName)) {
+                    diagnostics.push({
+                        code: "NODE_UNRESOLVED",
+                        severity: "warning",
+                        message: `@node('${nodeName}') references an undeclared node`,
+                        location: nodeDeco.loc,
+                        help: `Declare it in system body: node ${nodeName}`,
+                    });
+                }
+            }
+        }
+    }
+    // COMPONENT_NO_NODE: system has nodes but component has no @node
+    if (model.nodes.length > 0) {
+        for (const c of model.components) {
+            const hasNodeDeco = c.decorators.some((d) => d.name === "node");
+            if (!hasNodeDeco) {
+                diagnostics.push({
+                    code: "COMPONENT_NO_NODE",
+                    severity: "warning",
+                    message: `Component '${c.name}' has no @node — deployment target unknown`,
+                    location: c.loc,
+                    help: `Add @node(<nodeName>) to specify which node this component runs on`,
+                });
+            }
+        }
+    }
     return diagnostics;
 }
 //# sourceMappingURL=decorator-validation.js.map

@@ -60,6 +60,12 @@ Antes de escrever qualquer DSL, faca perguntas nas seguintes categorias:
 - Algum flow deve reagir automaticamente a eventos? Se sim, usar `on EventName` no flow
 - Algum flow produz eventos como side-effect? Se sim, usar `emits EventName` no flow
 
+### 8. Topologia de Deployment
+- Quantos nos de deployment o sistema possui? (ex: dispositivo edge + servidor central, cliente + backend)
+- Quais componentes rodam em cada no? (ex: MachineAgent no dispositivo, CentralAPI no servidor)
+- Ha comunicacao entre componentes em nos diferentes? Se sim, qual protocolo? (grpc, http, mqtt)
+- Existem restricoes de operacao offline em algum no? (ex: no edge deve funcionar sem conectividade)
+
 ## Checklist de Completude
 
 Apos gerar o modelo, verifique:
@@ -107,6 +113,10 @@ Apos gerar o modelo, verifique:
 - [ ] Construtos compartilhados seguem padrao correto (vocabulario em shared.mfd, protocolo em component compartilhado)
 - [ ] Nenhum componente e God Core (60%+ dos construtos centralizados em um unico componente)
 - [ ] Entidades gerenciadas ficam no componente gerenciador (Principio de Propriedade)
+- [ ] Se sistema tem nos de deployment, todos os nodes estao declarados (`node nome` no system body)
+- [ ] Se nodes declarados, componentes referenciam seu no via `@node(nome)` (warning `COMPONENT_NO_NODE` se omitido)
+- [ ] `@node(nome)` referencia node declarado (warning `NODE_UNRESOLVED` se nome nao existe)
+- [ ] Deps cross-node (entre componentes de nos diferentes) tem @type de rede definido (http, grpc, mqtt)
 
 ## Estrutura Multi-Arquivo
 

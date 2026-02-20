@@ -140,6 +140,22 @@ Quatro padroes mutuamente exclusivos:
 - `@required` -> falhar no startup se ausente
 - `@rotation(90d)` -> lembrete de rotacao
 
+### node -> Topologia de Deployment (sem codigo direto)
+
+`node` e uma declaracao de topologia — **nao gera codigo diretamente**. Impacta os PADROES de implementacao dos componentes que o referenciam via `@node`:
+
+- `@node(machine)` / `@node(edge)` → componente deve ser **resiliente offline**: persistencia local, sincronizacao eventual, retry com backoff exponencial
+- `@node(central)` / `@node(cloud)` → componente pode assumir conectividade; priorizar escalabilidade horizontal e health checks
+- `dep` entre componentes de nodes **diferentes** → implementar como chamada de rede real: timeout, retry, circuit breaker, logging de falha
+- `dep` entre componentes do **mesmo node** → chamada de funcao/modulo local; sem overhead de rede
+
+**Checklist cross-node:**
+- [ ] Configurar timeout na chamada HTTP/gRPC/MQTT
+- [ ] Implementar retry com backoff (nao retry imediato)
+- [ ] Adicionar circuit breaker para falhas repetidas
+- [ ] Logar falhas de comunicacao cross-node com contexto
+- [ ] Definir comportamento de fallback quando node remoto indisponivel
+
 ## Heranca e Interfaces — Mapping para Codigo
 
 ### @abstract -> Classe Base / Template

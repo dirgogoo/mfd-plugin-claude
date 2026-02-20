@@ -46,6 +46,9 @@ export function statsCommand(file, options) {
     console.log("Constructs:");
     console.log(`  systems:     ${model.systems.length}`);
     console.log(`  components:  ${model.components.length}`);
+    if (model.nodes.length > 0) {
+        console.log(`  nodes:       ${model.nodes.length}`);
+    }
     console.log(`  elements:    ${model.elements.length}`);
     console.log(`  entities:    ${model.entities.length}`);
     console.log(`  enums:       ${model.enums.length}`);
@@ -173,6 +176,18 @@ export function statsCommand(file, options) {
         const cycles = graph.findCycles();
         if (cycles.length > 0) {
             console.log(`  cycles: ${cycles.length} (WARNING)`);
+        }
+    }
+    // Deployment topology: components per node
+    if (model.nodes.length > 0) {
+        console.log(`\nDeployment Topology:`);
+        for (const node of model.nodes) {
+            const compsOnNode = model.components.filter((c) => c.decorators.some((d) => d.name === "node" && d.params[0]?.value === node.name));
+            console.log(`  ${node.name}: ${compsOnNode.length} component(s)${compsOnNode.length > 0 ? ` (${compsOnNode.map((c) => c.name).join(", ")})` : ""}`);
+        }
+        const unassigned = model.components.filter((c) => !c.decorators.some((d) => d.name === "node"));
+        if (unassigned.length > 0) {
+            console.log(`  (unassigned): ${unassigned.length} (${unassigned.map((c) => c.name).join(", ")})`);
         }
     }
     // Completeness: % with @status, @impl, @tests

@@ -100,6 +100,13 @@ export function renderVerifiedChip(decorators) {
     const count = verifiedDec.params[0] ? String(verifiedDec.params[0].value) : "1";
     return `<span class="scope-chip verified" title="Verified ${count} time(s) by council">✓ verified(${escapeHtml(count)})</span>`;
 }
+export function renderNodeChip(decorators) {
+    const nodeDec = decorators?.find((d) => d.name === "node");
+    if (!nodeDec || !nodeDec.params[0])
+        return "";
+    const nodeName = String(nodeDec.params[0].value);
+    return `<span class="scope-chip" style="background:var(--c-info,#3b82f6);color:#fff" title="Runs on node: ${escapeHtml(nodeName)}">⬡ ${escapeHtml(nodeName)}</span>`;
+}
 export function renderDecoratorChips(decorators) {
     if (!decorators?.length)
         return "";

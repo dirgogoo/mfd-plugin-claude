@@ -165,6 +165,7 @@ function filterModelByNames(model, names) {
         secrets: model.secrets,
         components: model.components,
         systems: model.systems,
+        nodes: model.nodes,
         screens: model.screens.filter(s => names.has(`screen:${s.name}`)),
         journeys: model.journeys.filter(j => names.has(`journey:${j.name}`)),
         operations: model.operations.filter(o => names.has(`operation:${o.name}`)),

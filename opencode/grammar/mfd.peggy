@@ -50,7 +50,7 @@ TopLevelError
 TopLevelKeyword
   = ("system" / "component" / "element" / "entity" / "enum" / "flow" / "state"
     / "event" / "signal" / "api" / "rule" / "dep" / "secret" / "screen"
-    / "journey" / "operation" / "action" / "import" / "include" / "#") !IdentContinue
+    / "journey" / "operation" / "action" / "import" / "include" / "node" / "#") !IdentContinue
 
 // ---------------------------------------------------------------------------
 // system
@@ -68,6 +68,7 @@ SystemBody
 
 SystemBodyItem
   = IncludeDecl
+  / NodeDecl
   / ComponentDecl
   / SemanticComment
   / SystemBodyError
@@ -78,7 +79,7 @@ SystemBodyError
   }
 
 SystemBodyKeyword
-  = ("import" / "include" / "component" / "#") !IdentContinue
+  = ("import" / "include" / "node" / "component" / "#") !IdentContinue
 
 // ---------------------------------------------------------------------------
 // include
@@ -88,6 +89,15 @@ IncludeDecl
   = ("import" / "include") __ path:StringLiteral __ {
     return { type: "IncludeDecl", loc: loc(), path };
   }
+
+// ---------------------------------------------------------------------------
+// node
+// ---------------------------------------------------------------------------
+
+NodeDecl
+  = "node" __ name:Identifier __ decos:Decorators __ {
+      return { type: "NodeDecl", loc: loc(), name, decorators: decos };
+    }
 
 // ---------------------------------------------------------------------------
 // component

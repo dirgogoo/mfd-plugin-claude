@@ -23,12 +23,15 @@ export function handleRender(args) {
         case "journey":
             mermaid = renderJourneyDiagram(model);
             break;
+        case "deployment":
+            mermaid = renderDeploymentDiagram(model);
+            break;
         default:
             return {
                 content: [
                     {
                         type: "text",
-                        text: `Unknown diagram type: ${args.diagram_type}. Use: component, entity, state, flow, screen, journey`,
+                        text: `Unknown diagram type: ${args.diagram_type}. Use: component, entity, state, flow, screen, journey, deployment`,
                     },
                 ],
                 isError: true,
@@ -431,6 +434,68 @@ export function renderJourneyDiagram(model) {
                         : item.from;
                 const to = item.to === "end" ? "END((end))" : item.to;
                 lines.push(`  ${from} -->|${item.trigger}| ${to}`);
+            }
+        }
+    }
+    return lines.join("\n");
+}
+export function renderDeploymentDiagram(model) {
+    if (model.nodes.length === 0) {
+        return "graph LR\n  %% No nodes declared — add 'node <name>' in system body";
+    }
+    const lines = ["graph LR"];
+    // Helper: get @node(name) value from component decorators
+    const getNodeName = (comp) => {
+        const deco = comp.decorators?.find((d) => d.name === "node");
+        if (!deco || !deco.params[0])
+            return null;
+        return String(deco.params[0].value);
+    };
+    // Group components by node
+    const nodeToComps = new Map();
+    const unassigned = [];
+    for (const node of model.nodes) {
+        nodeToComps.set(node.name, []);
+    }
+    for (const comp of model.components) {
+        const nodeName = getNodeName(comp);
+        if (nodeName && nodeToComps.has(nodeName)) {
+            nodeToComps.get(nodeName).push(comp.name);
+        }
+        else {
+            unassigned.push(comp.name);
+        }
+    }
+    // Render subgraphs per node
+    for (const node of model.nodes) {
+        const comps = nodeToComps.get(node.name) ?? [];
+        lines.push(`  subgraph ${node.name} ["node: ${node.name}"]`);
+        for (const compName of comps) {
+            lines.push(`    ${compName}`);
+        }
+        lines.push(`  end`);
+    }
+    // Unassigned components (no @node)
+    if (unassigned.length > 0) {
+        lines.push(`  subgraph unassigned ["(no node)"]`);
+        for (const compName of unassigned) {
+            lines.push(`    ${compName}`);
+        }
+        lines.push(`  end`);
+    }
+    // Cross-node dep arrows
+    for (const comp of model.components) {
+        const compNode = getNodeName(comp);
+        for (const item of comp.body) {
+            if (item.type === "DepDecl") {
+                const target = model.components.find((c) => c.name === item.target);
+                const targetNode = target ? getNodeName(target) : null;
+                const isCrossNode = compNode !== targetNode;
+                const typeDeco = item.decorators?.find((d) => d.name === "type");
+                const depType = typeDeco ? String(typeDeco.params[0]?.value ?? "") : "";
+                const label = isCrossNode && depType ? `${depType} ☁` : depType || (isCrossNode ? "☁" : "");
+                const arrow = label ? `-->|"${label}"|` : "-->";
+                lines.push(`  ${comp.name} ${arrow} ${item.target}`);
             }
         }
     }

@@ -16,7 +16,7 @@ function asciiBar(pct, width = 20) {
     return "█".repeat(filled) + "░".repeat(empty);
 }
 export function renderDashboard(snapshot) {
-    const { stats } = snapshot;
+    const { stats, model } = snapshot;
     const { completeness, componentCompleteness } = stats;
     // Sort components by impl progress descending
     const comps = [...componentCompleteness].sort((a, b) => {
@@ -82,6 +82,27 @@ export function renderDashboard(snapshot) {
         const done = all.filter(c => c.impl.length > 0).length;
         return `<span class="type-chip">${t.slice(0, 5)}:${done}/${all.length}</span>`;
     }).join(" ");
+    // --- Deployment topology (only if nodes declared) ---
+    const getNodeName = (comp) => {
+        const deco = comp.decorators?.find((d) => d.name === "node");
+        return deco?.params[0] ? String(deco.params[0].value) : null;
+    };
+    const topologySection = model.nodes.length > 0 ? (() => {
+        const rows = model.nodes.map((node) => {
+            const nodeComps = model.components.filter((c) => getNodeName(c) === node.name);
+            const compList = nodeComps.length > 0 ? nodeComps.map((c) => escapeHtml(c.name)).join(", ") : "—";
+            return `<div class="topo-row"><span class="topo-node">⬡ ${escapeHtml(node.name)}</span><span class="topo-comps">${compList}</span></div>`;
+        });
+        const unassigned = model.components.filter((c) => !getNodeName(c));
+        if (unassigned.length > 0) {
+            rows.push(`<div class="topo-row"><span class="topo-node" style="opacity:0.5">⬡ (unassigned)</span><span class="topo-comps">${unassigned.map((c) => escapeHtml(c.name)).join(", ")}</span></div>`);
+        }
+        return `
+  <div class="dash-section-line">── DEPLOYMENT ${"─".repeat(60)}</div>
+  <div class="dash-topology">
+    ${rows.join("\n    ")}
+  </div>`;
+    })() : "";
     return `
 <div class="dash-cli">
   <div class="dash-header">
@@ -136,6 +157,7 @@ export function renderDashboard(snapshot) {
   <div class="dash-types">
     ${typeSummary}
   </div>
+  ${topologySection}
 </div>`;
 }
 //# sourceMappingURL=dashboard.js.map

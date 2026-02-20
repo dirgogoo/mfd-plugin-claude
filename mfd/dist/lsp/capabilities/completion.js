@@ -128,7 +128,7 @@ function needsParens(decorator) {
     const withParams = [
         "version", "status", "format", "min", "max",
         "rate_limit", "cache", "prefix", "impl", "tests", "verified",
-        "requires", "rotation", "provider", "type", "layout", "persona",
+        "requires", "rotation", "provider", "type", "layout", "persona", "node",
     ];
     return withParams.includes(decorator);
 }

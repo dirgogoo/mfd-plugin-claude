@@ -52,6 +52,7 @@ function filterByComponent(model, names) {
         secrets: model.secrets.filter((s) => names.has(s.name)),
         components: model.components,
         systems: model.systems,
+        nodes: model.nodes,
     };
 }
 export function handleTestContract(args) {

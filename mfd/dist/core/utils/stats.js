@@ -83,6 +83,7 @@ export function computeStats(model, source) {
     const counts = {
         systems: model.systems.length,
         components: model.components.length,
+        nodes: model.nodes.length,
         elements: model.elements.length,
         entities: model.entities.length,
         enums: model.enums.length,

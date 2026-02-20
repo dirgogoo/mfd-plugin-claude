@@ -78,6 +78,13 @@ export function getDefinition(params, docManager) {
         }
         return null;
     }
+    else if (node.type === "Decorator" && node.name === "node") {
+        // @node(machine) → navigate to `node machine` declaration
+        const deco = node;
+        if (deco.params?.length > 0) {
+            targetName = String(deco.params[0].value);
+        }
+    }
     else if (node.type === "ElementDecl" || node.type === "EntityDecl" || node.type === "FlowDecl" || node.type === "ScreenDecl" || node.type === "ComponentDecl" || node.type === "EventDecl" || node.type === "SignalDecl") {
         // Inheritance: extends/implements targets
         if (node.extends) {
