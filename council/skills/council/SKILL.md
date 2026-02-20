@@ -175,30 +175,37 @@ From `mfd_trace`, confirm that at least one construct has `@impl`. If none, repo
 
 Extract `COMPONENT_FILTER` from `$ARGUMENTS` if `--component <name>` was provided (e.g. `--component Auth` → `COMPONENT_FILTER = "Auth"`). Otherwise `COMPONENT_FILTER = null`.
 
-Initialize: `round = 1`, `page = 0`, `batchCount = 0`.
+Initialize: `round = 1`, `batchCount = 0`.
 
 ### Step I2: Round-Robin Loop
 
-**CRITICAL: SEQUENTIAL. Each batch must fully complete before the next begins. Do NOT parallelize.**
+**CRITICAL: SEQUENTIAL. Each component batch must fully complete before the next begins. Do NOT parallelize.**
 
-**How the queue self-manages with `threshold=1`:**
-- A construct enters the queue when `verifiedCount < 1` (i.e. verifiedCount = 0).
-- After `mfd_verify mark` → verifiedCount becomes 1 → **leaves the queue automatically**.
-- After `mfd_verify strip` (drift found, code fixed) → verifiedCount resets to 0 → **stays in queue** for the next round.
-- Round 1 processes everyone (all start at verifiedCount=0). Round 2+ processes only those that drifted — no wasted re-verification of already-conforming constructs.
+**Each batch = one full component.** The tool groups pending constructs by component and returns them ready to iterate. One subagent receives all constructs of a component together — full context, better drift detection.
+
+**Threshold is automatic.** The tool computes `threshold = min(verifiedCount) + 1` across all @impl constructs in scope. This means:
+- Round 1: all constructs are at verifiedCount=0 → threshold=1 → all appear.
+- After marking: conforming constructs reach verifiedCount=1 → exit queue (1 < 1 = false).
+- After stripping (drift): constructs reset to verifiedCount=0 → stay in queue at top priority.
+- Round 2+: only drift survivors appear (verifiedCount=0 < auto-threshold=1). No re-verification of already-conforming constructs.
 
 ```
 while round <= 5:
-  call mfd_verify(file, action="list-pending", batch_size=5, page=page, threshold=1,
+  call mfd_verify(file, action="list-pending", group_by="component",
                   component=COMPONENT_FILTER, resolve_includes=true)
+  // threshold is omitted → auto-computed by tool
 
-  if returned == 0:
-    → END OF ROUND
-    → if total_pending == 0: EXIT LOOP ✓ (nothing left — all conforming)
-    → else: page=0, round++, continue (remaining are drift survivors → next round)
+  if summary.total_pending == 0:
+    → EXIT LOOP ✓ (all conforming)
 
-  → PROCESS THIS BATCH (steps a–c below)
-  → page++, batchCount++
+  for each component_name in groups (alphabetical order):
+    constructs = groups[component_name]
+    → DISPATCH SUBAGENT for this component (step a below)
+    → WAIT for verdict (step b)
+    → PROCESS RESULT (step c)
+    → batchCount++
+
+  round++
 
 if round > 5 and total_pending > 0:
   → EXIT LOOP (partial): report remaining as "unresolved after 5 rounds"

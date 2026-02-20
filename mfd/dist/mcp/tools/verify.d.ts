@@ -7,6 +7,7 @@ interface VerifyArgs {
     threshold?: number;
     batch_size?: number;
     page?: number;
+    group_by?: "component";
     codePath?: string;
     resolve_includes?: boolean;
 }

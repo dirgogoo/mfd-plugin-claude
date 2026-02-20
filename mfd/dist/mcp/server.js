@@ -379,8 +379,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                     },
                     threshold: {
                         type: "number",
-                        description: "Minimum @verified count for list-pending (default: 1). Use threshold=round to re-verify all constructs each round.",
-                        default: 1,
+                        description: "Minimum @verified count for list-pending. Default: auto (min verifiedCount in scope + 1), ensuring exactly the constructs that need a new verification pass are returned.",
+                    },
+                    group_by: {
+                        type: "string",
+                        enum: ["component"],
+                        description: "For list-pending: group results by component. Returns { groups: { ComponentName: [constructs...] } } instead of a flat list. Use this for component-scoped council reviews — one subagent per component.",
                     },
                     batch_size: {
                         type: "number",

@@ -182,7 +182,6 @@ function handleStripAll(args) {
 // ===== list-pending =====
 // Lists constructs with @impl but @verified absent or @verified(N) < threshold.
 function handleListPending(args) {
-    const threshold = args.threshold ?? 1;
     const { doc } = loadDocument(args.file, args.resolve_includes);
     const model = collectModel(doc);
     const componentFilter = args.component?.toLowerCase() ?? null;
@@ -195,7 +194,8 @@ function handleListPending(args) {
                 ownership.set(name, comp.name);
         }
     }
-    const pending = [];
+    // Collect ALL @impl constructs first (to compute auto threshold)
+    const allImpl = [];
     const allTrackable = [
         { type: "entity", items: model.entities },
         { type: "enum", items: model.enums },
@@ -230,21 +230,55 @@ function handleListPending(args) {
             const verifiedCount = verifiedDec
                 ? (verifiedDec.params[0] ? parseInt(String(verifiedDec.params[0].value), 10) || 1 : 1)
                 : 0;
-            if (verifiedCount < threshold) {
-                pending.push({ type, name, component, impl, verifiedCount });
-            }
+            allImpl.push({ type, name, component, impl, verifiedCount });
         }
     }
+    // Auto threshold: min verifiedCount across all @impl constructs in scope + 1
+    // This ensures the current "round" includes constructs not yet verified at this level.
+    // If caller explicitly passes threshold, that overrides auto.
+    const minVerified = allImpl.length > 0 ? Math.min(...allImpl.map((e) => e.verifiedCount)) : 0;
+    const threshold = args.threshold ?? (minVerified + 1);
+    const pending = allImpl.filter((e) => e.verifiedCount < threshold);
     // Sort by verifiedCount ascending (lowest first = highest priority), then alphabetically by name
     pending.sort((a, b) => a.verifiedCount - b.verifiedCount || a.name.localeCompare(b.name));
+    const withImpl = allImpl.length;
     const totalPending = pending.length;
+    // group_by="component": return constructs grouped by component instead of flat list
+    if (args.group_by === "component") {
+        const groups = {};
+        for (const entry of pending) {
+            const key = entry.component ?? "(unowned)";
+            if (!groups[key])
+                groups[key] = [];
+            groups[key].push(entry);
+        }
+        // Sort component names alphabetically; within each group already sorted by verifiedCount/name
+        const sortedGroups = Object.fromEntries(Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)));
+        return {
+            content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        summary: {
+                            total_pending: totalPending,
+                            components_with_pending: Object.keys(sortedGroups).length,
+                            withImpl,
+                            pct_verified: withImpl > 0 ? Math.round(((withImpl - totalPending) / withImpl) * 100) : 100,
+                            threshold,
+                            threshold_source: args.threshold != null ? "explicit" : "auto",
+                            sorted_by: "component asc, verifiedCount asc, name asc",
+                        },
+                        groups: sortedGroups,
+                    }, null, 2),
+                }],
+        };
+    }
+    // Flat list with optional batch_size/page
     const batchSize = args.batch_size;
     const page = args.page ?? 0;
     const offset = batchSize != null ? page * batchSize : 0;
     const batch = batchSize != null ? pending.slice(offset, offset + batchSize) : pending;
     const hasMore = batchSize != null ? offset + batchSize < totalPending : false;
     const totalPages = batchSize != null ? Math.ceil(totalPending / batchSize) : 1;
-    const withImpl = allTrackable.reduce((sum, { items }) => sum + items.filter((i) => i.decorators?.some((d) => d.name === "impl")).length, 0);
     return {
         content: [{
                 type: "text",
@@ -257,6 +291,7 @@ function handleListPending(args) {
                         withImpl,
                         pct_verified: withImpl > 0 ? Math.round(((withImpl - totalPending) / withImpl) * 100) : 100,
                         threshold,
+                        threshold_source: args.threshold != null ? "explicit" : "auto",
                         sorted_by: "verifiedCount asc, name asc",
                     },
                     pending: batch,
