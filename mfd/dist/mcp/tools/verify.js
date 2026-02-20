@@ -243,58 +243,71 @@ function handleListPending(args) {
     pending.sort((a, b) => a.verifiedCount - b.verifiedCount || a.name.localeCompare(b.name));
     const withImpl = allImpl.length;
     const totalPending = pending.length;
-    // group_by="component": return constructs grouped by component instead of flat list
-    if (args.group_by === "component") {
-        const groups = {};
-        for (const entry of pending) {
-            const key = entry.component ?? "(unowned)";
-            if (!groups[key])
-                groups[key] = [];
-            groups[key].push(entry);
-        }
-        // Sort component names alphabetically; within each group already sorted by verifiedCount/name
-        const sortedGroups = Object.fromEntries(Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)));
+    const PAGE_SIZE = 20;
+    const pctVerified = withImpl > 0 ? Math.round(((withImpl - totalPending) / withImpl) * 100) : 100;
+    const thresholdSource = args.threshold != null ? "explicit" : "auto";
+    // With component filter: return paginated flat list (page * 20 constructs)
+    if (args.component) {
+        const page = args.page ?? 0;
+        const paged = pending.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+        const hasMore = (page + 1) * PAGE_SIZE < totalPending;
+        const totalPages = Math.ceil(totalPending / PAGE_SIZE);
         return {
             content: [{
                     type: "text",
                     text: JSON.stringify({
                         summary: {
-                            total_pending: totalPending,
-                            components_with_pending: Object.keys(sortedGroups).length,
+                            component: args.component,
+                            total: totalPending,
+                            returned: paged.length,
+                            has_more: hasMore,
+                            page,
+                            total_pages: totalPages,
                             withImpl,
-                            pct_verified: withImpl > 0 ? Math.round(((withImpl - totalPending) / withImpl) * 100) : 100,
+                            pct_verified: pctVerified,
                             threshold,
-                            threshold_source: args.threshold != null ? "explicit" : "auto",
-                            sorted_by: "component asc, verifiedCount asc, name asc",
+                            threshold_source: thresholdSource,
                         },
-                        groups: sortedGroups,
+                        pending: paged,
                     }, null, 2),
                 }],
         };
     }
-    // Flat list with optional batch_size/page
-    const batchSize = args.batch_size;
-    const page = args.page ?? 0;
-    const offset = batchSize != null ? page * batchSize : 0;
-    const batch = batchSize != null ? pending.slice(offset, offset + batchSize) : pending;
-    const hasMore = batchSize != null ? offset + batchSize < totalPending : false;
-    const totalPages = batchSize != null ? Math.ceil(totalPending / batchSize) : 1;
+    // No component filter: return all pending grouped by component (batches of PAGE_SIZE)
+    const byComponent = new Map();
+    for (const entry of pending) {
+        const key = entry.component ?? "(unowned)";
+        if (!byComponent.has(key))
+            byComponent.set(key, []);
+        byComponent.get(key).push(entry);
+    }
+    const sortedComponents = [...byComponent.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const batches = [];
+    for (const [component, constructs] of sortedComponents) {
+        const totalBatches = Math.ceil(constructs.length / PAGE_SIZE);
+        for (let i = 0; i < totalBatches; i++) {
+            batches.push({
+                component,
+                batch: i + 1,
+                total_batches: totalBatches,
+                constructs: constructs.slice(i * PAGE_SIZE, (i + 1) * PAGE_SIZE),
+            });
+        }
+    }
     return {
         content: [{
                 type: "text",
                 text: JSON.stringify({
                     summary: {
-                        returned: batch.length,
                         total_pending: totalPending,
-                        has_more: hasMore,
-                        ...(batchSize != null && { page, total_pages: totalPages, batch_size: batchSize }),
+                        total_batches: batches.length,
+                        components_with_pending: sortedComponents.length,
                         withImpl,
-                        pct_verified: withImpl > 0 ? Math.round(((withImpl - totalPending) / withImpl) * 100) : 100,
+                        pct_verified: pctVerified,
                         threshold,
-                        threshold_source: args.threshold != null ? "explicit" : "auto",
-                        sorted_by: "verifiedCount asc, name asc",
+                        threshold_source: thresholdSource,
                     },
-                    pending: batch,
+                    batches,
                 }, null, 2),
             }],
     };

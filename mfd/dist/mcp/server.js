@@ -375,24 +375,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                     },
                     component: {
                         type: "string",
-                        description: "Filter by component name (for list-pending/mark-from-file)",
+                        description: "Filter by component name. When provided: returns pending constructs for that component only (paginated at 20 per page, use 'page' for subsequent pages). When omitted: returns all pending constructs grouped by component as a batches array (auto-split at 20 per batch).",
                     },
                     threshold: {
                         type: "number",
                         description: "Minimum @verified count for list-pending. Default: auto (min verifiedCount in scope + 1), ensuring exactly the constructs that need a new verification pass are returned.",
                     },
-                    group_by: {
-                        type: "string",
-                        enum: ["component"],
-                        description: "For list-pending: group results by component. Returns { groups: { ComponentName: [constructs...] } } instead of a flat list. Use this for component-scoped council reviews — one subagent per component.",
-                    },
-                    batch_size: {
-                        type: "number",
-                        description: "For list-pending: number of constructs per page. When set, returns only one page at a time (use with page parameter for round-robin iteration).",
-                    },
                     page: {
                         type: "number",
-                        description: "For list-pending: 0-based page index (requires batch_size). Returns constructs [page*batch_size .. (page+1)*batch_size). Use has_more in response to know if more pages exist.",
+                        description: "For list-pending with component filter: 0-based page index (default: 0). Each page returns up to 20 constructs. Check has_more in response to know if more pages exist.",
                         default: 0,
                     },
                     codePath: {

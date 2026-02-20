@@ -179,9 +179,9 @@ Initialize: `round = 1`, `batchCount = 0`.
 
 ### Step I2: Round-Robin Loop
 
-**CRITICAL: SEQUENTIAL. Each component batch must fully complete before the next begins. Do NOT parallelize.**
+**CRITICAL: SEQUENTIAL. Each batch must fully complete before the next begins. Do NOT parallelize.**
 
-**Each batch = one full component.** The tool groups pending constructs by component and returns them ready to iterate. One subagent receives all constructs of a component together — full context, better drift detection.
+**Each batch = one full component (or a page of 20 constructs for large components).** The tool automatically groups pending constructs by component and splits large components into pages of 20. One subagent receives all constructs of a batch together — full context, better drift detection.
 
 **Threshold is automatic.** The tool computes `threshold = min(verifiedCount) + 1` across all @impl constructs in scope. This means:
 - Round 1: all constructs are at verifiedCount=0 → threshold=1 → all appear.
@@ -191,19 +191,40 @@ Initialize: `round = 1`, `batchCount = 0`.
 
 ```
 while round <= 5:
-  call mfd_verify(file, action="list-pending", group_by="component",
-                  component=COMPONENT_FILTER, resolve_includes=true)
-  // threshold is omitted → auto-computed by tool
 
-  if summary.total_pending == 0:
-    → EXIT LOOP ✓ (all conforming)
+  // --- No component filter: get all pending grouped by component ---
+  if COMPONENT_FILTER is null:
+    call mfd_verify(file, action="list-pending", resolve_includes=true)
+    // Returns: { summary: { total_pending, total_batches, ... }, batches: [{component, batch, total_batches, constructs}] }
 
-  for each component_name in groups (alphabetical order):
-    constructs = groups[component_name]
-    → DISPATCH SUBAGENT for this component (step a below)
-    → WAIT for verdict (step b)
-    → PROCESS RESULT (step c)
-    → batchCount++
+    if summary.total_pending == 0:
+      → EXIT LOOP ✓ (all conforming)
+
+    for each batch in batches (sequential, alphabetical order):
+      → DISPATCH SUBAGENT with batch.constructs (step a below)
+      → WAIT for verdict (step b)
+      → PROCESS RESULT (step c)
+      → batchCount++
+
+  // --- With component filter: iterate pages for that component ---
+  else:
+    page = 0
+    component_done = false
+    while NOT component_done:
+      call mfd_verify(file, action="list-pending", component=COMPONENT_FILTER, page=page, resolve_includes=true)
+      // Returns: { summary: { total, returned, has_more, page }, pending: [...] }
+
+      if summary.total == 0 AND page == 0:
+        → EXIT LOOP ✓ (no pending for this component)
+
+      if summary.returned == 0:
+        component_done = true
+      else:
+        → DISPATCH SUBAGENT with pending (step a below)
+        → WAIT for verdict (step b)
+        → PROCESS RESULT (step c)
+        → batchCount++
+        if summary.has_more: page++ else component_done = true
 
   round++
 
