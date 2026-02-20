@@ -172,29 +172,33 @@ mfd_trace file="<path>" resolve_includes=true
 
 From `mfd_trace`, confirm that at least one construct has `@impl`. If none, report "No @impl decorators found — nothing to verify" and exit.
 
-Initialize: `round = 1`, `page = 0`, `batchCount = 0`, `driftCounts = {}` (map construct name → number of times it was found drifting).
+Initialize: `round = 1`, `page = 0`, `batchCount = 0`.
 
 ### Step I2: Round-Robin Loop
 
 **CRITICAL: SEQUENTIAL. Each batch must fully complete before the next begins. Do NOT parallelize.**
 
+**How threshold works:** Use `threshold=round` on every call. This means:
+- Round 1 (threshold=1): all constructs appear (everyone starts at verifiedCount=0, and 0 < 1)
+- Round 2 (threshold=2): constructs marked in round 1 have verifiedCount=1 (1 < 2 → appear again); drifted ones have verifiedCount=0 (0 < 2 → also appear). **All appear.**
+- Round N: same logic — every construct reappears regardless of whether it passed or drifted in previous rounds.
+
+**Exit condition:** At the end of a round (when `returned == 0`), if `total_pending == 0`, every construct passed this round — all done. If `total_pending > 0`, some still drifted — start another round.
+
 ```
 while round <= 5:
-  call mfd_verify(file, action="list-pending", batch_size=5, page=page, resolve_includes=true)
-
-  if total_pending == 0:
-    → EXIT LOOP (success): all constructs are conforming ✓
+  call mfd_verify(file, action="list-pending", batch_size=5, page=page, threshold=round, resolve_includes=true)
 
   if returned == 0:
-    → END OF ROUND: all batches in this round processed
-    → if total_pending == 0: EXIT LOOP (success) ✓
-    → else: page=0, round++, continue (start next round)
+    → END OF ROUND: no more batches for this round
+    → if total_pending == 0: EXIT LOOP ✓ (all constructs conforming this round)
+    → else: page=0, round++, continue
 
   → PROCESS THIS BATCH (steps a–c below)
   → page++, batchCount++
 
-if round > 5 and total_pending > 0:
-  → EXIT LOOP (partial): report remaining pending constructs as "unresolved after 5 rounds"
+if round > 5:
+  → EXIT LOOP (partial): report remaining as "unresolved after 5 rounds"
 ```
 
 **a) Dispatch 1 subagent** (`subagent_type: "general-purpose"`, `model: "sonnet"`):
@@ -218,8 +222,6 @@ if round > 5 and total_pending > 0:
 
 2. Parse `DRIFT:` (present only if drift found)
    - For each drifted construct:
-     - Increment `driftCounts[name]`
-     - If `driftCounts[name] > 5` → skip, add to final "unresolved drift" list, do not fix
      - **If DECISION_REQUIRED: true and YOLO_MODE = false** → pause, ask the user:
        > "**[construct]** has [what was found] not in the model. [DECISION_REASON]. What should I do?
        > (A) Add to model — I'll update the .mfd file now
