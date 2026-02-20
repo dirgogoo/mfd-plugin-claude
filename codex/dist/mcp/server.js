@@ -379,8 +379,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                     },
                     threshold: {
                         type: "number",
-                        description: "Minimum @verified count for list-pending (default: 1 = any without @verified)",
+                        description: "Minimum @verified count for list-pending (default: 1). Use threshold=round to re-verify all constructs each round.",
                         default: 1,
+                    },
+                    batch_size: {
+                        type: "number",
+                        description: "For list-pending: number of constructs per page. When set, returns only one page at a time (use with page parameter for round-robin iteration).",
+                    },
+                    page: {
+                        type: "number",
+                        description: "For list-pending: 0-based page index (requires batch_size). Returns constructs [page*batch_size .. (page+1)*batch_size). Use has_more in response to know if more pages exist.",
+                        default: 0,
                     },
                     codePath: {
                         type: "string",
