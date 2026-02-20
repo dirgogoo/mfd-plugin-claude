@@ -13,6 +13,7 @@ Multi-agent review council that reviews MFD models from multiple perspectives (m
 `$ARGUMENTS` — Optional flags:
 - `--phase modeling` — Force modeling phase (3-perspective model review)
 - `--phase implementation` — Force implementation phase (code vs model drift detection)
+- `--component <name>` — Restrict implementation review to a single component (e.g. `--component Auth`)
 - `--yolo` — Skip mode selection question and run in Yolo mode (see below)
 - `<path>` — Path to the .mfd file (auto-detected if omitted)
 
@@ -172,32 +173,34 @@ mfd_trace file="<path>" resolve_includes=true
 
 From `mfd_trace`, confirm that at least one construct has `@impl`. If none, report "No @impl decorators found — nothing to verify" and exit.
 
+Extract `COMPONENT_FILTER` from `$ARGUMENTS` if `--component <name>` was provided (e.g. `--component Auth` → `COMPONENT_FILTER = "Auth"`). Otherwise `COMPONENT_FILTER = null`.
+
 Initialize: `round = 1`, `page = 0`, `batchCount = 0`.
 
 ### Step I2: Round-Robin Loop
 
 **CRITICAL: SEQUENTIAL. Each batch must fully complete before the next begins. Do NOT parallelize.**
 
-**How threshold works:** Use `threshold=round` on every call. This means:
-- Round 1 (threshold=1): all constructs appear (everyone starts at verifiedCount=0, and 0 < 1)
-- Round 2 (threshold=2): constructs marked in round 1 have verifiedCount=1 (1 < 2 → appear again); drifted ones have verifiedCount=0 (0 < 2 → also appear). **All appear.**
-- Round N: same logic — every construct reappears regardless of whether it passed or drifted in previous rounds.
-
-**Exit condition:** At the end of a round (when `returned == 0`), if `total_pending == 0`, every construct passed this round — all done. If `total_pending > 0`, some still drifted — start another round.
+**How the queue self-manages with `threshold=1`:**
+- A construct enters the queue when `verifiedCount < 1` (i.e. verifiedCount = 0).
+- After `mfd_verify mark` → verifiedCount becomes 1 → **leaves the queue automatically**.
+- After `mfd_verify strip` (drift found, code fixed) → verifiedCount resets to 0 → **stays in queue** for the next round.
+- Round 1 processes everyone (all start at verifiedCount=0). Round 2+ processes only those that drifted — no wasted re-verification of already-conforming constructs.
 
 ```
 while round <= 5:
-  call mfd_verify(file, action="list-pending", batch_size=5, page=page, threshold=round, resolve_includes=true)
+  call mfd_verify(file, action="list-pending", batch_size=5, page=page, threshold=1,
+                  component=COMPONENT_FILTER, resolve_includes=true)
 
   if returned == 0:
-    → END OF ROUND: no more batches for this round
-    → if total_pending == 0: EXIT LOOP ✓ (all constructs conforming this round)
-    → else: page=0, round++, continue
+    → END OF ROUND
+    → if total_pending == 0: EXIT LOOP ✓ (nothing left — all conforming)
+    → else: page=0, round++, continue (remaining are drift survivors → next round)
 
   → PROCESS THIS BATCH (steps a–c below)
   → page++, batchCount++
 
-if round > 5:
+if round > 5 and total_pending > 0:
   → EXIT LOOP (partial): report remaining as "unresolved after 5 rounds"
 ```
 
@@ -231,7 +234,7 @@ if round > 5:
      - **If no DECISION_REQUIRED** → apply the fix, call `mfd_verify strip`.
      - After fix/strip: the construct's `verifiedCount` resets to 0 — it will appear at the **top** of the next round's priority queue automatically.
 
-**Why this works:** `list-pending` re-reads the file on each call. After `mfd_verify mark`, a construct's `verifiedCount` increases past threshold and disappears from future calls. After `mfd_verify strip` (drift fixed), its `verifiedCount` drops to 0, placing it at the front of the next round. The loop exits only when `total_pending == 0` — i.e., every construct has been marked.
+**Why this works:** `list-pending` re-reads the .mfd file on every call. `mfd_verify mark` writes `@verified(1)` → construct exits the queue. `mfd_verify strip` removes `@verified` → construct re-enters at the top of the queue (verifiedCount=0 = highest priority). Round 2+ is automatically scoped to drift survivors only — no wasted passes over already-conforming constructs. The loop exits when `total_pending == 0`.
 
 ### Step I3: Final Report (Implementation)
 
