@@ -12,7 +12,15 @@ export declare class WorkspaceManager {
     resolve(filePath: string, liveText?: string): void;
     /** Invalidate and re-resolve a file and all roots that import it. */
     invalidate(filePath: string, liveText?: string): void;
-    /** Returns the ResolvedEntry that "contains" the given file. */
+    /**
+     * Scan the file's directory (and parent) for .mfd files that contain imports.
+     * This allows cross-file resolution to work even when only a component file is open.
+     */
+    private discoverRoots;
+    /**
+     * Returns the ResolvedEntry that "contains" the given file.
+     * Prefers the parent root (more complete merged model) over the file's own entry.
+     */
     getEntryFor(filePath: string): ResolvedEntry | null;
     /** Get merged known types from the resolved entry for a file. */
     getMergedKnownTypes(filePath: string): Set<string> | null;

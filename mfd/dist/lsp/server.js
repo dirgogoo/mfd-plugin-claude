@@ -30,17 +30,8 @@ connection.onInitialize((_params) => {
             hoverProvider: true,
             definitionProvider: true,
             documentSymbolProvider: true,
-            workspace: {
-                workspaceFolders: { supported: true },
-            },
         },
     };
-});
-connection.onInitialized(() => {
-    connection.workspace.getWorkspaceFolders().then((_folders) => {
-        // Workspace folders available for future use (e.g. eager file discovery).
-        // WorkspaceManager resolves on-demand as files are opened.
-    });
 });
 // Wire up capabilities
 setupDiagnostics(connection, docManager);
