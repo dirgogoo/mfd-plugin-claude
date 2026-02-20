@@ -44,8 +44,27 @@ export function sendDiagnostics(connection, docManager, uri) {
             source: "mfd",
         });
     }
-    // Validation errors/warnings
-    const result = validate(entry.doc);
+    // Validation errors/warnings.
+    // When a merged workspace entry is available (a parent root imports this file),
+    // validate the merged document so cross-file type references resolve correctly.
+    // Filter results to only errors/warnings that belong to this file.
+    let result;
+    if (resolvedEntry && resolvedEntry.rootPath !== (filePath ?? "")) {
+        const mergedResult = validate(resolvedEntry.result.document);
+        const belongsHere = (d) => {
+            const src = d.location.start.source;
+            if (!src)
+                return true;
+            return WorkspaceManager.pathToUri(src) === uri || src === uri;
+        };
+        result = {
+            errors: mergedResult.errors.filter(belongsHere),
+            warnings: mergedResult.warnings.filter(belongsHere),
+        };
+    }
+    else {
+        result = validate(entry.doc);
+    }
     for (const err of result.errors) {
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
