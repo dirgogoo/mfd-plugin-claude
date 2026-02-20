@@ -69,24 +69,26 @@ Each subagent receives:
 - The council protocol (verdict format)
 - Instructions to use MFD MCP tools (`mfd_contract`, `mfd_query`, `mfd_validate`, `mfd_stats`, `mfd_render`)
 
-Dispatch all 3 simultaneously:
+Dispatch all 3 simultaneously. **ALL THREE must use `subagent_type: "general-purpose"`** — no exceptions.
 
-1. **Architect Reviewer** — `general-purpose` subagent type
+1. **MFD Council — Architecture Perspective** (`subagent_type: "general-purpose"`)
    - Read the architect prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/architect.md`
    - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
    - Task prompt: Include both prompts + the .mfd file path + instruct to use MFD MCP tools and return verdict
 
-2. **Backend Reviewer** — `general-purpose` subagent type
+2. **MFD Council — Backend Perspective** (`subagent_type: "general-purpose"`)
    - Read the backend prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/backend.md`
    - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
    - Task prompt: Include both prompts + the .mfd file path + instruct to use MFD MCP tools and return verdict
 
-3. **Fullstack Reviewer** — `general-purpose` subagent type
+3. **MFD Council — Fullstack Perspective** (`subagent_type: "general-purpose"`)
    - Read the fullstack prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/fullstack.md`
    - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
    - Task prompt: Include both prompts + the .mfd file path + instruct to use MFD MCP tools and return verdict
 
-**IMPORTANT:** Read the prompt files BEFORE dispatching subagents. Include the full prompt content in each Task call so subagents have the complete instructions. Use `general-purpose` (not typed agents) so subagents have access to ALL tools including MFD MCP tools (`mfd_contract`, `mfd_query`, `mfd_validate`, `mfd_stats`, `mfd_render`, `mfd_verify`).
+**CRITICAL — SUBAGENT TYPE:** Always use `subagent_type: "general-purpose"` for ALL council agents. NEVER use `architect-reviewer`, `backend-developer`, `fullstack-developer`, `code-reviewer`, or any other typed agent — they do NOT have MCP tool access and will fail to use `mfd_contract`, `mfd_query`, `mfd_verify`, etc.
+
+**MODEL:** Always use `model: "sonnet"` for all subagents. Do NOT use haiku — council reviews require the depth of Sonnet 4.6.
 
 **MODEL:** Always use `model: "sonnet"` for all subagents. Do NOT use haiku — council reviews require the depth of Sonnet 4.6.
 
@@ -149,10 +151,11 @@ For each iteration:
 
 **a) Dispatch 1 subagent:**
 
-- **Code Reviewer** — `general-purpose` subagent type, `model: "sonnet"`
+- **MFD Council — Implementation Inspector** (`subagent_type: "general-purpose"`, `model: "sonnet"`)
   - Read the code-review prompt: `${CLAUDE_PLUGIN_ROOT}/prompts/code-review.md`
   - Read the protocol: `${CLAUDE_PLUGIN_ROOT}/prompts/council-protocol.md`
   - Task prompt: Include both prompts + the .mfd file path + the list of constructs with @impl paths + instruct to use MFD MCP tools and Read tool to compare code vs model
+  - **NEVER use `subagent_type: "code-reviewer"`** — use `general-purpose` only.
 
 **b) Evaluate verdict:**
 
