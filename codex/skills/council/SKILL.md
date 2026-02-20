@@ -180,11 +180,17 @@ Process the **entire priority queue** in batches of 5, from first to last. The l
    - Extract construct name as the last word of each line (e.g. `entity User` → `User`)
 
 2. Parse the `DRIFT:` section (present only if any drift found)
-   - For each drifted construct:
-     - Read the file mentioned in `FILE`
-     - Apply the fix described in `FIX` (fixes target **CODE**, never the model)
-     - Call `mfd_verify({ file: "<path>", action: "strip", construct: "<NAME>" })` to remove any existing @verified
-     - Add the construct to a **re-verification list**
+   - For each drifted construct, check for `DECISION_REQUIRED: true`:
+     - **If DECISION_REQUIRED: true** → do NOT auto-fix. Ask the user:
+       > "**[construct name]** has [describe what was found] that is not in the model. Reason: [DECISION_REASON]. What should I do?
+       > (A) Add it to the model first — switch to modeling phase
+       > (B) Remove it from the code — aligns to current model"
+       Wait for the user's answer before continuing to the next batch. If user chooses (B), apply the removal and add to re-verification list. If (A), pause the implementation phase.
+     - **If no DECISION_REQUIRED** → standard flow:
+       - Read the file mentioned in `FILE`
+       - Apply the fix described in `FIX` (fixes target **CODE**, never the model)
+       - Call `mfd_verify({ file: "<path>", action: "strip", construct: "<NAME>" })` to remove any existing @verified
+       - Add the construct to a **re-verification list**
 
 **d)** Increment `batchCount`. Continue to the next batch of 5.
 

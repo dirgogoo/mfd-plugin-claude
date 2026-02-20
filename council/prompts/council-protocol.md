@@ -32,8 +32,10 @@ DRIFT: (apenas se DRIFT_FOUND)
     PROBLEM: <descricao clara da divergencia — o que o modelo espera vs o que o codigo faz>
     EXPECTED: <o que o modelo define>
     FOUND: <o que o codigo implementa>
-    IMPACT: <consequencia pratica do drift — ex: "campo email nao tem validacao @format(email), aceitando valores invalidos">
-    FIX: <como corrigir o codigo para alinhar ao modelo — passo a passo>
+    IMPACT: <consequencia pratica do drift>
+    FIX: <como corrigir o codigo para alinhar ao modelo — passo a passo> (omitir se DECISION_REQUIRED: true)
+    DECISION_REQUIRED: true  # opcional — ver regra 9 abaixo
+    DECISION_REASON: <por que esta decisao precisa de aprovacao humana — ex: "campo executed_at carrega timestamp de execucao do agente, usado ativamente em CommandLog; remover perderia rastreabilidade de quando o comando foi executado">
 ```
 
 ## Regras
@@ -45,4 +47,6 @@ DRIFT: (apenas se DRIFT_FOUND)
 5. **Foco na sua perspectiva.** Nao tente cobrir tudo — sua perspectiva tem um escopo definido. Confie nos outros membros do council para cobrir as demais areas.
 6. **APPROVED e o padrao.** So retorne ISSUES_FOUND se houver problemas reais e acionaveis. Nao invente issues para justificar sua existencia.
 7. **Fase implementacao: modelo e fonte de verdade.** Quando ha drift, o CODIGO deve ser corrigido, NUNCA o modelo. Se o codigo diverge intencionalmente, o modelo deve ser atualizado primeiro (fase modelagem).
+8. **Fix-by-hiding e proibido.** Nunca "corrija" drift movendo dados nao modelados de um tipo publico para um tipo interno nao modelado. Isso desloca o drift, nao corrige. Ex: remover `executed_at` de `CommandResult` e criar `AgentCommandResult extends CommandResult { executed_at }` localmente e proibido — cria novo drift invisivel.
+9. **DECISION_REQUIRED para extras com valor de negocio.** Se o codigo tem um campo/comportamento nao modelado que: (a) carrega informacao semantica clara, (b) e usado ativamente (nao e vestigial), e (c) remover causaria perda real de informacao — nao auto-corrija. Emita `DECISION_REQUIRED: true` com `DECISION_REASON` explicando o valor do dado. O orquestrador pausara e perguntara ao usuario se deve modelar ou remover.
 8. **Descreva problemas com clareza.** Cada issue deve ter: (a) PROBLEM explicando o que esta errado em linguagem natural, (b) IMPACT explicando a consequencia pratica, (c) SOLUTION com passos concretos para resolver. Nao basta dizer "falta @auth" — explique por que importa e como corrigir.

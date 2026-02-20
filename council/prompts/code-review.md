@@ -33,7 +33,7 @@ Se nenhuma lista for fornecida, revisar todos os construtos com @impl (comportam
 - [ ] Todos os campos do modelo existem no codigo?
 - [ ] Tipos sao compativeis? (string→string, number→number/int/float, uuid→string/UUID, etc.)
 - [ ] Campos opcionais (`?`) sao opcionais no codigo?
-- [ ] Campos extras no codigo que nao existem no modelo? (drift: codigo adicionou algo nao modelado)
+- [ ] Campos extras no codigo que nao existem no modelo? Para cada campo extra, avaliar: e vestigial/debug (remover) ou carrega valor de negocio real (DECISION_REQUIRED — ver secao abaixo)?
 - [ ] Decorators relevantes refletidos? (@unique → unique constraint, @format → validation)
 
 ### enum
@@ -83,6 +83,43 @@ Se nenhuma lista for fornecida, revisar todos os construtos com @impl (comportam
 - [ ] Regra implementada como validacao/check?
 - [ ] Condicao `when` refletida no codigo?
 - [ ] Acao `then` executada corretamente?
+
+## Quando Usar DECISION_REQUIRED
+
+Nem todo extra no codigo e drift simples. Use `DECISION_REQUIRED: true` (definido no council-protocol.md) quando o campo/comportamento extra satisfizer os tres criterios:
+
+1. **Valor semantico claro** — o campo carrega informacao de negocio identificavel (ex: timestamp de execucao, ID de correlacao, dado de auditoria, estado transitorio importante)
+2. **Uso ativo** — o campo e escrito e/ou lido em pelo menos um fluxo real (nao e apenas definido mas nunca usado, ou e debug/log temporario)
+3. **Perda real se removido** — remover mudaria o comportamento observavel do sistema ou perderia rastreabilidade importante
+
+**Teste mental:** "Se eu remover este campo agora, perdemos informacao real de negocio ou quebramos algum fluxo?" → Se sim: DECISION_REQUIRED.
+
+Exemplos de DECISION_REQUIRED:
+- `executed_at?: Date` em `CommandResult` — timestamp de quando o agente executou o comando, alimenta log de auditoria
+- `correlation_id?: string` em resposta de evento — rastreabilidade cross-service
+- `retry_count: number` em registro de job — metrica de confiabilidade
+
+Exemplos de drift simples (remover sem perguntar):
+- `debug?: boolean` — campo de desenvolvimento
+- `temp_fix?: string` — workaround temporario nomeado como tal
+- Campo definido mas nunca referenciado em nenhum fluxo
+
+## Proibido: Fix-by-Hiding
+
+**NUNCA** corrija drift criando tipos internos nao modelados para carregar dados removidos. Isso desloca o drift para dentro do codigo, onde o council nao ve na proxima revisao.
+
+Exemplos PROIBIDOS:
+```
+// PROIBIDO: remove do tipo publico e esconde em interface local
+interface AgentCommandResult extends CommandResult {
+  executed_at?: Date;  // campo que foi "removido" do modelo publico
+}
+
+// PROIBIDO: wrapper/adapter que carrega campo nao modelado
+type EnrichedResult = CommandResult & { timestamp: Date };
+```
+
+Se a unica forma de alinhar o codigo ao modelo exige criar um tipo interno para carregar dados que o modelo nao conhece — o modelo esta incompleto. Use DECISION_REQUIRED em vez de fix-by-hiding.
 
 ## Como Usar as Ferramentas MFD
 
