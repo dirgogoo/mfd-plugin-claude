@@ -43,6 +43,9 @@ const KNOWN_DECORATORS = {
     interface: { params: "none" },
     // Deployment topology
     node: { params: "identifier" },
+    // UI / Experience
+    layout: { params: "identifier" },
+    persona: { params: "identifier" },
 };
 const VALID_STATUS = new Set(["modeling", "implementing", "production", "deprecated",
     "implemented", "in_progress", "pending", "verified"]);
