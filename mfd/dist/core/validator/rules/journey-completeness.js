@@ -9,6 +9,7 @@ export function journeyCompleteness(doc) {
     const diagnostics = [];
     const screenNames = new Set(model.screens.map((s) => s.name));
     const eventNames = new Set(model.events.map((e) => e.name));
+    const signalNames = new Set(model.signals.map((s) => s.name));
     for (const journey of model.journeys) {
         const steps = journey.body.filter((i) => i.type === "JourneyStep");
         if (steps.length === 0) {
@@ -54,14 +55,14 @@ export function journeyCompleteness(doc) {
                     help: "Declare the screen or check the name",
                 });
             }
-            // JOURNEY_TRIGGER_UNRESOLVED: trigger must be a declared event
-            if (step.trigger && !eventNames.has(step.trigger)) {
+            // JOURNEY_TRIGGER_UNRESOLVED: trigger must be a declared event or signal
+            if (step.trigger && !eventNames.has(step.trigger) && !signalNames.has(step.trigger)) {
                 diagnostics.push({
                     code: "JOURNEY_TRIGGER_UNRESOLVED",
                     severity: "error",
-                    message: `Journey '${journey.name}' trigger '${step.trigger}' is not a declared event`,
+                    message: `Journey '${journey.name}' trigger '${step.trigger}' is not a declared event or signal`,
                     location: step.loc,
-                    help: `Declare 'event ${step.trigger} { ... }' or check the name`,
+                    help: `Declare 'event ${step.trigger} { ... }' or 'signal ${step.trigger} { ... }' or check the name`,
                 });
             }
             // Track for reachability and duplicates
