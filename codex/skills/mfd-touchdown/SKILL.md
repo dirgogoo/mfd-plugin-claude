@@ -8,6 +8,19 @@ user-invocable: true
 
 Age como usuário real guiado pelo modelo MFD como oráculo. Usa Chrome DevTools para navegar o sistema ao vivo, sem scripts pré-escritos.
 
+## Princípio Central: O Modelo É O Oráculo
+
+**O modelo define o que é correto. O código é que se conforma ao modelo — nunca o contrário.**
+
+Quando algo falha:
+- O modelo diz que `POST /pedidos` deve retornar `201 + Pedido` → se o código retorna `404`, o **código está errado**
+- O modelo diz que a tela `Checkout` tem um botão "Confirmar" → se o botão não existe, o **código está incompleto**
+- O modelo define a journey `checkout` com 3 passos → se o sistema pula um passo, o **código tem bug**
+
+A IA corrige o código para refletir o modelo. O modelo só é alterado em dois casos:
+1. **MODEL_GAP micro**: detalhe cosmético que o modelo não capturou (label, texto, ordem visual) — micro-ajuste sem alterar semântica
+2. **CONTRACT_MISMATCH**: contradição real de semântica → não alterar sozinha, reportar para o usuário decidir
+
 ## Argumentos
 
 `$ARGUMENTS` — Path ao arquivo .mfd (ou `main.mfd` para multi-file), opcionalmente seguido da URL base (ex: `model/main.mfd http://localhost:3000`).
@@ -77,9 +90,12 @@ Para cada journey (prioridade: journeys com `@impl` mas sem `@live`):
 | `ENV_ISSUE` | Problema de ambiente (servidor down, auth expirou, dados faltando) | Flagra → continua próxima journey |
 
 **Regra de autonomia:**
-- CODE_BUG: IA age autonomamente para corrigir o código
-- MODEL_GAP "micro-ajuste": mudança de detalhe (texto de campo, label de botão, ordem de step) sem alterar semântica do contrato
-- Qualquer mudança semântica ao modelo → DECISION_REQUIRED antes de alterar
+- `CODE_BUG`: IA corrige o código autonomamente para conformar ao modelo → re-testa. O modelo manda.
+- `MODEL_GAP` micro-ajuste: detalhe cosmético (texto de label, ordem de campo visual) que o modelo não capturou — atualizar o modelo para refletir a realidade sem alterar a semântica do contrato → re-testa.
+- `CONTRACT_MISMATCH`: contradição semântica real → não toca no código nem no modelo sozinha. Reporta ao usuário com evidência: "o modelo diz X, o sistema faz Y — qual está errado?"
+- `NOT_MODELED`: funcionalidade real sem correspondência no modelo → DECISION_REQUIRED. Nunca ignorar silenciosamente.
+
+**Em caso de dúvida:** o modelo está certo. O código está errado.
 
 ### Passo 5 — Marcar @live e @verified
 
