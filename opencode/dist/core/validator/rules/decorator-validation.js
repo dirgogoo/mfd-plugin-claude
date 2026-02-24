@@ -16,6 +16,8 @@ const KNOWN_DECORATORS = {
     tests: { params: "path_list" },
     // Verification — @verified(N) where N >= 1, or @verified (defaults to 1)
     verified: { params: "number_opt" },
+    // Live verification — @live(N) where N >= 1
+    live: { params: "number_opt" },
     // API
     rate_limit: { params: "rate" },
     cache: { params: "duration" },
@@ -51,8 +53,6 @@ const VALID_STATUS = new Set(["modeling", "implementing", "production", "depreca
     "implemented", "in_progress", "pending", "verified"]);
 /** Deprecated @impl label values — replaced by file paths */
 const DEPRECATED_IMPL_VALUES = new Set(["done", "backend", "frontend", "partial"]);
-/** Deprecated @tests label values — replaced by file paths */
-const DEPRECATED_TESTS_VALUES = new Set(["unit", "integration", "e2e", "contract", "done", "pending"]);
 /** All known decorator names for "did you mean?" suggestions */
 const ALL_DECORATOR_NAMES = Object.keys(KNOWN_DECORATORS);
 /** Human-readable descriptions for decorator parameter types */
@@ -163,6 +163,28 @@ export function decoratorValidation(doc) {
                 });
             }
         }
+        // Validate @live — optional integer param, must be >= 1 if provided
+        if (deco.name === "live" && deco.params.length > 0) {
+            const param = deco.params[0];
+            const numVal = param.kind === "number" ? Number(param.value) : null;
+            if (numVal === null) {
+                diagnostics.push({
+                    code: "DECORATOR_INVALID",
+                    severity: "warning",
+                    message: `@live expects an integer parameter, e.g. @live(1)`,
+                    location: deco.loc,
+                });
+            }
+            else if (!Number.isInteger(numVal) || numVal < 1) {
+                diagnostics.push({
+                    code: "DECORATOR_INVALID_VALUE",
+                    severity: "warning",
+                    message: `@live(${param.value}) must be an integer >= 1`,
+                    location: deco.loc,
+                    help: `Use @live(1), @live(2), etc.`,
+                });
+            }
+        }
         // Validate @status values
         if (deco.name === "status" && deco.params.length > 0) {
             const val = deco.params[0];
@@ -197,31 +219,6 @@ export function decoratorValidation(doc) {
                         message: `@impl('${val}') should be a file path`,
                         location: deco.loc,
                         help: `Use a relative path like @impl(src/path/to/file.ts)`,
-                    });
-                }
-            }
-        }
-        // Validate @tests values — file paths expected, deprecated labels warned
-        if (deco.name === "tests" && deco.params.length > 0) {
-            for (const param of deco.params) {
-                const val = param.kind === "string" ? param.value : param.kind === "identifier" ? param.value : null;
-                if (val && DEPRECATED_TESTS_VALUES.has(val)) {
-                    diagnostics.push({
-                        code: "TESTS_DEPRECATED_VALUE",
-                        severity: "warning",
-                        message: `@tests('${val}') is deprecated. Use file paths instead: @tests(tests/path/to/file.test.ts)`,
-                        location: deco.loc,
-                        help: `Replace with the path to the test file, e.g. @tests(tests/services/file.test.ts)`,
-                    });
-                }
-                // Identifiers that aren't deprecated values and don't look like paths = likely error
-                if (val && param.kind === "identifier" && !DEPRECATED_TESTS_VALUES.has(val) && !val.includes("/")) {
-                    diagnostics.push({
-                        code: "TESTS_INVALID_VALUE",
-                        severity: "warning",
-                        message: `@tests('${val}') should be a file path`,
-                        location: deco.loc,
-                        help: `Use a relative path like @tests(tests/path/to/file.test.ts)`,
                     });
                 }
             }
@@ -280,6 +277,17 @@ export function decoratorValidation(doc) {
                 message: "@verified requires @impl on the same construct",
                 location: decos.find((d) => d.name === "verified").loc,
                 help: "Add @impl(path/to/file.ts) before @verified to track the implementation file",
+            });
+        }
+        // LIVE_WITHOUT_IMPL: @live without @impl on same construct
+        const hasLive = decos.some((d) => d.name === "live");
+        if (hasLive && !hasImpl) {
+            diagnostics.push({
+                code: "LIVE_WITHOUT_IMPL",
+                severity: "warning",
+                message: "@live requires @impl on the same construct",
+                location: decos.find((d) => d.name === "live").loc,
+                help: "Add @impl(path/to/file.ts) before @live to track the implementation file",
             });
         }
         // DECORATOR_INVALID_TARGET: @abstract/@interface on unsupported constructs

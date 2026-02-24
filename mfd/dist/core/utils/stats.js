@@ -155,6 +155,7 @@ export function computeStats(model, source) {
     const withImpl = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "impl")).length;
     const withTests = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "tests")).length;
     const withVerified = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "verified")).length;
+    const withLive = allConstructs.filter((c) => c.decorators?.some((d) => d.name === "live")).length;
     const pct = (n, t) => (t === 0 ? 0 : Math.round((n / t) * 100));
     const completeness = {
         total: allConstructs.length,
@@ -162,10 +163,12 @@ export function computeStats(model, source) {
         withImpl,
         withTests,
         withVerified,
+        withLive,
         statusPct: pct(withStatus, allConstructs.length),
         implPct: pct(withImpl, allConstructs.length),
         testsPct: pct(withTests, allConstructs.length),
         verifiedPct: pct(withVerified, allConstructs.length),
+        livePct: pct(withLive, allConstructs.length),
     };
     // Per-component completeness
     const componentCompleteness = model.components.map((comp) => {

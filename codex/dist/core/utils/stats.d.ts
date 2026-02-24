@@ -53,10 +53,12 @@ export interface CompletenessStats {
     withImpl: number;
     withTests: number;
     withVerified: number;
+    withLive: number;
     statusPct: number;
     implPct: number;
     testsPct: number;
     verifiedPct: number;
+    livePct: number;
 }
 export interface ComponentCompleteness {
     name: string;

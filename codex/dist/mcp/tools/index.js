@@ -11,6 +11,7 @@ export { handleContext } from "./context.js";
 export { handleDiff } from "./diff.js";
 export { handleTrace } from "./trace.js";
 export { handleVerify } from "./verify.js";
+export { handleLive } from "./live.js";
 export { handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./visual.js";
 export { handleListResources, handleReadResource, } from "../resources/index.js";
 //# sourceMappingURL=index.js.map

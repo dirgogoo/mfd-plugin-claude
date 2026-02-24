@@ -65,6 +65,8 @@ export function handleStats(args) {
         lines.push(`  @status: ${stats.completeness.withStatus}/${stats.completeness.total} (${pct(stats.completeness.withStatus, stats.completeness.total)})`);
         lines.push(`  @impl:   ${stats.completeness.withImpl}/${stats.completeness.total} (${pct(stats.completeness.withImpl, stats.completeness.total)})`);
         lines.push(`  @tests:  ${stats.completeness.withTests}/${stats.completeness.total} (${pct(stats.completeness.withTests, stats.completeness.total)})`);
+        lines.push(`  @verified: ${stats.completeness.withVerified}/${stats.completeness.total} (${pct(stats.completeness.withVerified, stats.completeness.total)})`);
+        lines.push(`  @live:     ${stats.completeness.withLive}/${stats.completeness.total} (${pct(stats.completeness.withLive, stats.completeness.total)})`);
     }
     return {
         content: [{ type: "text", text: lines.join("\n") }],

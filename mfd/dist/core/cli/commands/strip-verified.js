@@ -52,10 +52,14 @@ export function stripAllVerified(source) {
         .split("\n")
         .map((line) => {
         // Remove " @verified(...)" — include leading space to avoid double-space
-        const withParens = line.replace(/[ \t]*@verified\s*\([^)]*\)/g, () => { count++; return ""; });
+        const withoutVerifiedParens = line.replace(/[ \t]*@verified\s*\([^)]*\)/g, () => { count++; return ""; });
         // Remove standalone " @verified" (word boundary, not followed by opening paren)
-        const standalone = withParens.replace(/[ \t]*@verified\b(?!\s*\()/g, () => { count++; return ""; });
-        return standalone.replace(/\s+$/, "");
+        const withoutVerified = withoutVerifiedParens.replace(/[ \t]*@verified\b(?!\s*\()/g, () => { count++; return ""; });
+        // Remove " @live(...)"
+        const withoutLiveParens = withoutVerified.replace(/[ \t]*@live\s*\([^)]*\)/g, () => { count++; return ""; });
+        // Remove standalone " @live"
+        const withoutLive = withoutLiveParens.replace(/[ \t]*@live\b(?!\s*\()/g, () => { count++; return ""; });
+        return withoutLive.replace(/\s+$/, "");
     })
         .join("\n");
     return { source: result, count };
@@ -74,6 +78,8 @@ function stripVerifiedFromNames(source, names) {
             lines[i] = lines[i]
                 .replace(/[ \t]*@verified\s*\([^)]*\)/g, () => { count++; return ""; })
                 .replace(/[ \t]*@verified\b(?!\s*\()/g, () => { count++; return ""; })
+                .replace(/[ \t]*@live\s*\([^)]*\)/g, () => { count++; return ""; })
+                .replace(/[ \t]*@live\b(?!\s*\()/g, () => { count++; return ""; })
                 .replace(/\s+$/, "");
             if (before !== lines[i]) {
                 console.log(`  stripped @verified from: ${m[2]} ${m[3]}`);

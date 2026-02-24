@@ -8,7 +8,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleTestContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVerify, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
+import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleTestContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVerify, handleLive, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
 import { handleListResources, handleReadResource, } from "./resources/index.js";
 const server = new Server({
     name: "mfd-tools",
@@ -400,8 +400,49 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             },
         },
         {
+            name: "mfd_live",
+            description: "Live verification tracker using @live decorator. Tracks Touchdown (live browser verification) runs. mark: increments @live(N) on a construct (touchdown pass). strip: removes @live from a construct. strip-all: removes ALL @live and @verified from a file (after any edit). list-pending: lists constructs with @impl but @live absent or below threshold (prioritizes journey, screen, action, api).",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file: {
+                        type: "string",
+                        description: "Path to the .mfd file",
+                    },
+                    action: {
+                        type: "string",
+                        enum: ["mark", "strip", "strip-all", "list-pending"],
+                        description: "Action to perform",
+                    },
+                    construct: {
+                        type: "string",
+                        description: "Construct name (required for mark/strip)",
+                    },
+                    component: {
+                        type: "string",
+                        description: "Filter by component name. When provided: returns pending constructs for that component only (paginated at 20 per page, use 'page' for subsequent pages). When omitted: returns all pending constructs grouped by component.",
+                    },
+                    threshold: {
+                        type: "number",
+                        description: "Minimum @live count for list-pending. Default: auto (min liveCount in scope + 1).",
+                    },
+                    page: {
+                        type: "number",
+                        description: "For list-pending with component filter: 0-based page index (default: 0). Each page returns up to 20 constructs.",
+                        default: 0,
+                    },
+                    resolve_includes: {
+                        type: "boolean",
+                        description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                },
+                required: ["file", "action"],
+            },
+        },
+        {
             name: "mfd_prompt",
-            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao, arquitetura, boas-praticas, brownfield, testes.",
+            description: "Access the MFD prompt library. Use 'list' to see available prompts, or provide a prompt name to get its content. Available prompts: modelagem, implementacao, verificacao, refatoracao, exploracao, arquitetura, boas-praticas, brownfield, testes, touchdown.",
             inputSchema: {
                 type: "object",
                 properties: {
@@ -521,6 +562,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request, _extra) => {
                 return handleTrace(args);
             case "mfd_verify":
                 return handleVerify(args);
+            case "mfd_live":
+                return handleLive(args);
             case "mfd_prompt":
                 return handlePrompt(args);
             case "mfd_visual_start":
