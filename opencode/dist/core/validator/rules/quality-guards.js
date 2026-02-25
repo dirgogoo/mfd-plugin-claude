@@ -81,32 +81,6 @@ export function qualityGuards(doc) {
             });
         }
     }
-    // IMPL_WITHOUT_TESTS: warn when @impl exists but @tests is missing
-    const testableCollections = [
-        { type: "entity", items: model.entities },
-        { type: "flow", items: model.flows },
-        { type: "operation", items: model.operations },
-        { type: "screen", items: model.screens },
-        { type: "journey", items: model.journeys },
-        { type: "action", items: model.actions },
-        { type: "element", items: model.elements },
-        { type: "rule", items: model.rules },
-    ];
-    for (const { type, items } of testableCollections) {
-        for (const item of items) {
-            const hasImpl = item.decorators.some((d) => d.name === "impl");
-            const hasTests = item.decorators.some((d) => d.name === "tests");
-            if (hasImpl && !hasTests) {
-                diagnostics.push({
-                    code: "IMPL_WITHOUT_TESTS",
-                    severity: "warning",
-                    message: `${type} '${item.name}' has @impl but no @tests`,
-                    location: item.loc,
-                    help: `Add @tests(path/to/test/file.test.ts) to track test coverage`,
-                });
-            }
-        }
-    }
     for (const flow of model.flows) {
         const isAbstract = flow.decorators.some((d) => d.name === "abstract");
         if (isAbstract)
