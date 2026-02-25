@@ -12,6 +12,8 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 
 **O modelo é o oráculo.** O que o modelo define é o que o sistema DEVE fazer. Se o sistema faz diferente, ou há um bug (CODE_BUG), ou o modelo está incompleto (MODEL_GAP), ou há contradição real (CONTRACT_MISMATCH).
 
+**Touchdown é E2E — tudo flui pela interface.** Cada verificação começa com uma ação do usuário na UI (navegar, clicar, preencher form). APIs, regras e flows são verificados como efeito colateral dessas ações — nunca chamados diretamente. Se não passa pela UI, não é Touchdown.
+
 ## Protocolo de Verificação por Tipo de Construto
 
 ### Journey
@@ -55,10 +57,12 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 
 ### API Endpoint
 - **O que verificar:** Endpoint existe, método correto, response schema correto
-- **Como verificar:**
-  1. `evaluate_script` para fazer fetch direto, ou monitorar network calls
-  2. Comparar response com tipo declarado no modelo
-- **PASS se:** Status HTTP, schema de response e headers batem com o modelo
+- **Como verificar:** APIs são verificadas como efeito colateral de ações na UI — NUNCA via fetch direto
+  1. Executar a action que dispara a chamada (click, form submit, etc.)
+  2. `list_network_requests` para capturar o request que a UI gerou
+  3. Comparar: método HTTP, URL, body schema, status e response schema vs modelo
+- **PASS se:** Call disparado pela UI bate com `calls METHOD /path` do modelo, response schema correto
+- **NUNCA usar:** `evaluate_script` para fetch direto — isso não é E2E, bypassa a interface
 
 ### Rule
 - **O que verificar:** Violação da regra é rejeitada
