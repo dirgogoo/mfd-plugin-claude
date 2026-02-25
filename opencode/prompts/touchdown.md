@@ -14,17 +14,21 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 
 **Touchdown é E2E — tudo flui pela interface.** Cada verificação começa com uma ação do usuário na UI (navegar, clicar, preencher form). APIs, regras e flows são verificados como efeito colateral dessas ações — nunca chamados diretamente. Se não passa pela UI, não é Touchdown.
 
+**Verificar comportamento, não só presença.** Não basta confirmar que um elemento existe — é preciso observar como a interface reage. Screenshot antes da ação, executa, screenshot depois: a UI mudou conforme o modelo define? Loading apareceu? Botão desabilitou? Mensagem de sucesso/erro exibiu? Dado atualizou? Navegação aconteceu? O comportamento da interface É o teste.
+
 ## Protocolo de Verificação por Tipo de Construto
 
 ### Journey
-- **O que verificar:** Cada passo `TelaA -> TelaB : on trigger` deve ser navegável
+- **O que verificar:** Cada passo `TelaA -> TelaB : on trigger` deve ser navegável com comportamento correto
 - **Como verificar:**
   1. Navegar para TelaA (via URL ou navegação interna)
-  2. Verificar que TelaA está renderizada (screenshot)
+  2. Screenshot do estado inicial de TelaA
   3. Executar o trigger (click, form submit, etc.)
-  4. Verificar que TelaB é exibida (screenshot)
-  5. Verificar network calls intermediários
-- **PASS se:** Todas as transições navegam corretamente, elementos presentes, APIs respondem conforme modelo
+  4. Observar mudanças de estado intermediárias (loading, spinner, botão desabilitado, feedback inline)
+  5. Screenshot após o trigger — a UI reagiu? Houve transição visual?
+  6. Verificar que TelaB é exibida (screenshot de destino)
+  7. Verificar network calls disparados pela UI
+- **PASS se:** Todas as transições navegam corretamente, UI reage visivelmente ao trigger, APIs respondem conforme modelo
 
 ### Screen
 - **O que verificar (Fase 1 — durante journey):** Elementos visíveis durante a navegação, forms renderizados
@@ -39,13 +43,16 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 - **FAIL se:** Um ou mais elements falharam na verificação
 
 ### Action (imperativa — `calls`)
-- **O que verificar:** HTTP call correto ao executar a ação
+- **O que verificar:** HTTP call correto + UI reage conforme o resultado
 - **Como verificar:**
-  1. `list_network_requests` antes da ação (baseline)
-  2. Executar a ação (click/form)
-  3. `list_network_requests` após (capturar novo request)
-  4. Verificar: método HTTP, URL, body schema, response status e schema
-- **PASS se:** Call bate com `calls METHOD /path` do modelo, response schema correto
+  1. Screenshot do estado inicial
+  2. `list_network_requests` baseline
+  3. Executar a ação (click/form)
+  4. Observar feedback imediato da UI: botão desabilitou? loading apareceu? campos bloquearam?
+  5. `list_network_requests` após — capturar request gerado pela UI
+  6. Verificar: método HTTP, URL, body schema, response status e schema
+  7. Screenshot do estado final — sucesso renderizou? erro exibiu? navegação aconteceu conforme `| resultado -> Tela`?
+- **PASS se:** Call bate com `calls METHOD /path`, UI exibe feedback durante e após, resultado navega/mostra conforme o modelo
 
 ### Action (reativa — `on STREAM` ou `on Signal`)
 - **O que verificar:** Atualização da UI quando evento chega
@@ -65,11 +72,13 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 - **NUNCA usar:** `evaluate_script` para fetch direto — isso não é E2E, bypassa a interface
 
 ### Rule
-- **O que verificar:** Violação da regra é rejeitada
+- **O que verificar:** Violação da regra é rejeitada e a UI comunica isso ao usuário
 - **Como verificar:**
-  1. Submeter dados que violam a regra
-  2. Verificar que sistema rejeita (4xx, mensagem de erro)
-- **PASS se:** Sistema rejeita a violação com resposta apropriada
+  1. Submeter dados que violam a regra (via UI — preencher form, clicar submit)
+  2. Verificar que sistema rejeita (4xx no network)
+  3. Verificar que a UI exibe mensagem de erro/feedback visível — o usuário SABE que foi rejeitado
+  4. Screenshot para evidenciar o estado de erro na interface
+- **PASS se:** Sistema rejeita a violação E a UI comunica o erro de forma visível
 
 ### Element
 - **O que verificar:** Props não-opcionais renderizadas, forms presentes, comportamento correto
@@ -81,6 +90,51 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 - **PASS se:** Todos os `resolvedProps` não-opcionais visíveis, forms corretos
 - **Element `@abstract`:** pular (não é renderizado diretamente)
 - **Element já com `@live`:** pular (não re-verificar)
+
+## Observação de Mudança de Estado da UI
+
+Em E2E, o que valida o comportamento é a sequência de estados da interface — não só o estado final. Para cada interação significativa, observar:
+
+### Estados a verificar
+
+| Momento | O que observar |
+|---------|---------------|
+| **Antes da ação** | Estado inicial está correto? Elementos habilitados/visíveis conforme esperado? |
+| **Durante a ação** | Loading indicator apareceu? Botão desabilitou? Spinner rodando? Campo bloqueado? |
+| **Após sucesso** | Dado atualizado na UI? Mensagem de confirmação exibiu? Navegação aconteceu? Estado voltou ao normal? |
+| **Após erro** | Mensagem de erro visível? Campo destacado? Usuário pode corrigir e retentar? |
+| **Transição de tela** | URL mudou conforme esperado? Tela destino renderizou completamente? Dados carregados? |
+
+### Como observar
+
+```
+1. take_screenshot — captura estado inicial
+2. Executar ação (click, fill, submit)
+3. take_screenshot imediatamente — captura estado transitório (loading, disabled)
+4. Aguardar resposta
+5. take_screenshot — captura estado final
+6. Comparar os 3 screenshots: a sequência faz sentido com o que o modelo define?
+```
+
+### Mapeamento modelo → estado visual
+
+| O modelo define | A UI deve mostrar |
+|----------------|-------------------|
+| `action calls POST /x \| sucesso -> TelaY` | Após submit: feedback visual → navega para TelaY |
+| `action calls POST /x \| erro -> end` | Após erro: mensagem de erro inline, usuário permanece na tela |
+| `state ciclo: Status { pendente -> ativo }` | Badge/label muda de "Pendente" para "Ativo" após transição |
+| `rule { when X then reject("msg") }` | Mensagem "msg" (ou equivalente) aparece na UI |
+| `on STREAM /events -> atualizado` | Dado atualiza sem reload ao receber evento |
+| `signal CartUpdated` | Contador/badge de carrinho atualiza sem navegação |
+
+### Sinais de CODE_BUG por comportamento
+
+- Loading nunca aparece (UX quebrada, mas não é requisito do modelo)
+- Botão não desabilita durante submit → permite duplo-clique → CODE_BUG se causa duplicata
+- Mensagem de sucesso não aparece → usuário não sabe se funcionou → CODE_BUG
+- Erro silencioso (request falhou mas UI não informa) → CODE_BUG
+- Navegação para tela errada após ação → CODE_BUG
+- Dado na UI não reflete resposta da API → CODE_BUG
 
 ## Screen — Verificação Fase 2 (Sweep Direto)
 
