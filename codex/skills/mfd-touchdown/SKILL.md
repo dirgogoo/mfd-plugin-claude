@@ -10,20 +10,34 @@ Age como usuário real guiado pelo modelo MFD como oráculo. Usa Chrome DevTools
 
 ## Princípio Central: O Modelo É O Oráculo
 
-**O modelo define o que é correto. O código é que se conforma ao modelo — nunca o contrário.**
+**O modelo define o que é correto. O código é que se conforma ao modelo — salvo quando o código revela uma implementação melhor.**
 
-Quando algo falha:
-- O modelo diz que `POST /pedidos` deve retornar `201 + Pedido` → se o código retorna `404`, o **código está errado**
-- O modelo diz que a tela `Checkout` tem um botão "Confirmar" → se o botão não existe, o **código está incompleto**
-- O modelo define a journey `checkout` com 3 passos → se o sistema pula um passo, o **código tem bug**
+Quando algo diverge:
+- Código retorna `404` onde modelo define `201` → **código está errado** → fix código
+- Botão "Confirmar" ausente onde modelo define que existe → **código está incompleto** → fix código
+- Código implementa fluxo em 2 passos mais elegantes onde modelo define 3 → **modelo pode melhorar** → `MODEL_IMPROVEMENT`
+- Contradição semântica sem direção clara → **ambiguidade real** → reportar, aguardar humano
 
-A IA corrige o código para refletir o modelo. O modelo só é alterado em dois casos:
-1. **MODEL_GAP micro**: detalhe cosmético que o modelo não capturou (label, texto, ordem visual) — micro-ajuste sem alterar semântica
-2. **CONTRACT_MISMATCH**: contradição real de semântica → não alterar sozinha, reportar para o usuário decidir
+## Modos de Execução
+
+| Modo | Como ativar | Comportamento |
+|------|------------|---------------|
+| **Default** | sem flag | Fix CODE_BUG autônomo. MODEL_IMPROVEMENT: reporta, pausa. NOT_MODELED: pergunta. |
+| **Yolo** | `--yolo` | Fix CODE_BUG autônomo. MODEL_IMPROVEMENT: atualiza modelo, continua. NOT_MODELED: adiciona ao modelo, continua. |
+
+`CONTRACT_MISMATCH` é sempre reportado — em ambos os modos. Ambiguidade genuína exige decisão humana.
 
 ## Argumentos
 
-`$ARGUMENTS` — Path ao arquivo .mfd (ou `main.mfd` para multi-file), opcionalmente seguido da URL base (ex: `model/main.mfd http://localhost:3000`).
+`$ARGUMENTS` — Path ao arquivo .mfd (ou `main.mfd` para multi-file), opcionalmente seguido da URL base e flags.
+
+Exemplos:
+```
+/mfd-touchdown model/main.mfd http://localhost:3000
+/mfd-touchdown model/main.mfd http://localhost:3000 --yolo
+```
+
+**Flag `--yolo`:** Modo autônomo completo. Fix de bugs no código e melhorias de modelo aplicados na hora, sem pausar para confirmação. Ver tabela de modos acima.
 
 ## Pré-requisitos
 
@@ -148,23 +162,29 @@ mfd_live list-pending file="<arquivo.mfd>" component="<Comp>"
 - `@impl` path como hint: nome do arquivo = nome do componente a buscar no DOM (ex: `BookCard.tsx` → buscar componente BookCard)
 - Entity reference prop: ao menos um campo da entidade deve estar renderizado
 
-### Passo 5 — Classificação de Falhas
+### Passo 5 — Classificação e Ação por Modo
 
-| Categoria | Critério | Autonomia |
-|-----------|---------|-----------|
-| `CODE_BUG` | Comportamento diferente do esperado pelo modelo, mas modelo está correto | Autônomo: fix código → re-testa |
-| `MODEL_GAP` | Modelo não captura detalhe real mas intenção está correta | Micro-ajuste: atualizar modelo sem council → re-testa |
-| `CONTRACT_MISMATCH` | Comportamento real contradiz contrato do modelo (semanticamente) | Reportar → volta ao Council |
-| `NOT_MODELED` | Tela/fluxo real não existe no modelo | DECISION_REQUIRED → pergunta ao usuário |
-| `ENV_ISSUE` | Problema de ambiente (servidor down, auth expirou, dados faltando) | Flagra → continua próxima journey |
+| Categoria | Critério | Default | Yolo |
+|-----------|---------|---------|------|
+| `CODE_BUG` | Código diverge do modelo; modelo está certo | Fix código → re-testa | Fix código → re-testa |
+| `MODEL_GAP` | Detalhe cosmético não capturado (label, ordem visual) | Fix modelo (notifica) → re-testa | Fix modelo → re-testa |
+| `MODEL_IMPROVEMENT` | Código implementa algo melhor que o modelo define | Reporta → pausa | Atualiza modelo → continua |
+| `CONTRACT_MISMATCH` | Contradição semântica genuína, sem direção clara | Reporta → volta ao Council | Reporta → volta ao Council |
+| `NOT_MODELED` | Funcionalidade real sem correspondência no modelo | Pergunta ao usuário | Adiciona ao modelo → continua |
+| `ENV_ISSUE` | Problema de ambiente (servidor down, auth expirou) | Flagra → continua | Flagra → continua |
 
-**Regra de autonomia:**
-- `CODE_BUG`: IA corrige o código autonomamente para conformar ao modelo → re-testa. O modelo manda.
-- `MODEL_GAP` micro-ajuste: detalhe cosmético (texto de label, ordem de campo visual) que o modelo não capturou — atualizar o modelo para refletir a realidade sem alterar a semântica do contrato → re-testa.
-- `CONTRACT_MISMATCH`: contradição semântica real → não toca no código nem no modelo sozinha. Reporta ao usuário com evidência: "o modelo diz X, o sistema faz Y — qual está errado?"
-- `NOT_MODELED`: funcionalidade real sem correspondência no modelo → DECISION_REQUIRED. Nunca ignorar silenciosamente.
+**Como distinguir MODEL_IMPROVEMENT de CONTRACT_MISMATCH:**
+- `MODEL_IMPROVEMENT`: há uma direção clara — o código faz mais sentido e o modelo deve evoluir para refletir isso. Ex: modelo define 3 passos de checkout mas código tem 2 mais coesos; modelo não captura estado de loading que o código trata corretamente.
+- `CONTRACT_MISMATCH`: ambiguidade genuína — não é óbvio qual está certo. Ex: modelo define navegação para TelaA após sucesso, código vai para TelaB — qual é a intenção do produto?
 
-**Em caso de dúvida:** o modelo está certo. O código está errado.
+**Em modo Yolo, ao aplicar MODEL_IMPROVEMENT:**
+1. Descrever a melhoria ("código faz X que é melhor que Y do modelo porque Z")
+2. Atualizar o `.mfd` para refletir a implementação real
+3. Validar modelo após edição (`mfd_validate`)
+4. Registrar no relatório como `MODEL_IMPROVEMENT` aplicado
+5. Continuar — não pausar
+
+**Em caso de dúvida sobre a categoria:** tratar como `CONTRACT_MISMATCH` e reportar.
 
 ### Passo 6 — Marcar @live e @verified (Fase 1)
 
@@ -228,8 +248,12 @@ Touchdown é uma forma adicional de confiança: incrementa tanto `@live` quanto 
 ## Fixes Aplicados (CODE_BUG)
 - src/pages/Buscar.tsx linha 42: campo `query` estava com typo `queyr`
 
-## Pendentes (DECISION_REQUIRED)
-- Tela `/perfil/avancado` existe no sistema mas não está modelada
+## Melhorias de Modelo Aplicadas (MODEL_IMPROVEMENT) [yolo only]
+- journey checkout: modelo definia 3 passos, código usa 2 passos mais coesos → modelo atualizado
+
+## Pendentes (DECISION_REQUIRED / CONTRACT_MISMATCH)
+- checkout: modelo diz navegar para Sucesso, código vai para Home → qual é correto?
+- Tela `/perfil/avancado` existe no sistema mas não está modelada [default: aguardando decisão]
 ```
 
 ## Tabela de Verificação por Construto

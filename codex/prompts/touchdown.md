@@ -10,7 +10,7 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 
 ## Princípio Fundamental
 
-**O modelo é o oráculo.** O que o modelo define é o que o sistema DEVE fazer. Se o sistema faz diferente, ou há um bug (CODE_BUG), ou o modelo está incompleto (MODEL_GAP), ou há contradição real (CONTRACT_MISMATCH).
+**O modelo é o oráculo — mas o código pode ensiná-lo.** O que o modelo define é o que o sistema DEVE fazer. Se o sistema faz diferente: ou há um bug (CODE_BUG), ou o modelo não capturou um detalhe (MODEL_GAP), ou o código tem uma implementação genuinamente melhor (MODEL_IMPROVEMENT), ou há contradição real (CONTRACT_MISMATCH).
 
 **Touchdown é E2E — tudo flui pela interface.** Cada verificação começa com uma ação do usuário na UI (navegar, clicar, preencher form). APIs, regras e flows são verificados como efeito colateral dessas ações — nunca chamados diretamente. Se não passa pela UI, não é Touchdown.
 
@@ -199,33 +199,65 @@ Início da Fase 2:
 
 Este mecanismo garante que a Fase 2 não re-verifica screens já cobertas incidentalmente pelas journeys.
 
+## Modos de Execução — Default vs Yolo
+
+| Categoria | Default | Yolo |
+|-----------|---------|------|
+| `CODE_BUG` | Fix código → re-testa | Fix código → re-testa |
+| `MODEL_GAP` | Fix modelo (notifica) → re-testa | Fix modelo → re-testa |
+| `MODEL_IMPROVEMENT` | Reporta → pausa | Atualiza modelo → continua |
+| `CONTRACT_MISMATCH` | Reporta → volta ao Council | Reporta → volta ao Council |
+| `NOT_MODELED` | Pergunta ao usuário | Adiciona ao modelo → continua |
+| `ENV_ISSUE` | Flagra → continua | Flagra → continua |
+
+`CONTRACT_MISMATCH` é sempre reportado — em ambos os modos. Ambiguidade genuína exige decisão humana.
+
 ## Classificação de Falhas — Critério de Autonomia
 
-### CODE_BUG (autônomo)
+### CODE_BUG (autônomo — ambos os modos)
 **Critério:** O modelo está correto, o código está errado.
 - Exemplo: Model define `POST /pedidos → 201`, código retorna `200`
 - Exemplo: Element renderiza campo com nome errado
 - Exemplo: Form não valida campo `@required`
+- Exemplo: Botão habilitado quando deveria estar desabilitado
 **Ação:** Fix autônomo no código → re-testa imediatamente
 
-### MODEL_GAP — Micro-ajuste (autônomo com notificação)
-**Critério:** Intenção do modelo está correta, mas detalhe real difere.
-- Exemplos de micro-ajuste PERMITIDO: label de botão, ordem de campos em form, nome de campo UI
-- Exemplos de micro-ajuste NÃO PERMITIDO: adicionar/remover entidades, mudar API endpoints, alterar semântica de fluxos
-**Ação:** Atualizar modelo (sem council necessário) → notificar usuário → re-testa
+### MODEL_GAP — Micro-ajuste (autônomo com notificação — ambos os modos)
+**Critério:** Intenção do modelo está correta, mas detalhe cosmético difere.
+- Exemplos PERMITIDOS: label de botão, ordem de campos em form, nome de campo UI, mensagem de erro
+- Exemplos NÃO PERMITIDOS: adicionar/remover entidades, mudar API endpoints, alterar semântica de fluxos
+**Ação:** Atualizar modelo (sem council) → notificar usuário → re-testa
 
-### CONTRACT_MISMATCH (reportar)
-**Critério:** Comportamento real contradiz semanticamente o contrato do modelo.
+### MODEL_IMPROVEMENT (default: pausa / yolo: autônomo)
+**Critério:** O código implementa algo genuinamente melhor que o modelo define. Há uma direção clara: o modelo deve evoluir para refletir a implementação real.
+- Exemplo: modelo define journey com 3 passos, código usa 2 passos mais coesos e funcionais
+- Exemplo: modelo não captura estado de validação inline que o código trata corretamente
+- Exemplo: código navega para uma tela mais adequada ao contexto do que o modelo define
+- Exemplo: modelo define entidade com campo que o código não usa por boas razões de UX
+
+**Como distinguir de CONTRACT_MISMATCH:** em MODEL_IMPROVEMENT, é óbvio que o código está certo e o modelo deve ser atualizado. Em CONTRACT_MISMATCH, há ambiguidade — não é claro qual está certo. Em dúvida: tratar como CONTRACT_MISMATCH.
+
+**Ação em Default:** Reportar com evidência: "o código faz X que é melhor que Y do modelo porque Z. Devo atualizar o modelo?" → pausa
+**Ação em Yolo:**
+1. Descrever a melhoria (código faz X, modelo dizia Y, razão: Z)
+2. Atualizar o `.mfd` para refletir a implementação real
+3. Validar modelo após edição (`mfd_validate`)
+4. Registrar no relatório como MODEL_IMPROVEMENT aplicado
+5. Continuar
+
+### CONTRACT_MISMATCH (reportar — ambos os modos)
+**Critério:** Comportamento real contradiz semanticamente o contrato do modelo, sem direção clara.
 - Exemplo: Journey define `Carrinho -> Checkout`, mas sistema vai direto para Home
 - Exemplo: API define retorno `User | Error`, mas sistema nunca retorna erro (swallow)
 **Ação:** Documentar no relatório → volta ao Council → não marcar @live
 
-### NOT_MODELED (DECISION_REQUIRED)
+### NOT_MODELED (default: pergunta / yolo: adiciona ao modelo)
 **Critério:** Feature/tela existe no sistema mas não existe no modelo.
 - Exemplo: Tela `/perfil/avancado` existe mas não está em nenhum screen do modelo
-**Ação:** Perguntar ao usuário: modelar? ignorar? remover feature?
+**Ação Default:** Perguntar ao usuário: modelar? ignorar? remover feature?
+**Ação Yolo:** Adicionar ao modelo os constructs que fazem sentido → validar → continuar
 
-### ENV_ISSUE (flagrar e continuar)
+### ENV_ISSUE (flagrar e continuar — ambos os modos)
 **Critério:** Problema de ambiente, não de código ou modelo.
 - Exemplo: Servidor down, banco sem dados seed, auth expirou
 **Ação:** Flagrar no relatório → continuar próxima journey
