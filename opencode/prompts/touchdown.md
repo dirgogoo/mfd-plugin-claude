@@ -25,13 +25,16 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 - **PASS se:** Todas as transições navegam corretamente, elementos presentes, APIs respondem conforme modelo
 
 ### Screen
-- **O que verificar:** Elementos presentes, forms renderizados, título correto
+- **O que verificar (Fase 1 — durante journey):** Elementos visíveis durante a navegação, forms renderizados
+- **O que verificar (Fase 2 — sweep direto):** Cada `uses ElementName -> alias` renderizado, forms corretos
 - **Como verificar:**
   1. Navegar para a URL da tela
   2. `take_screenshot`
   3. Verificar que cada `uses ElementoX` está visível
   4. Verificar que forms declarados existem (campos corretos)
-- **PASS se:** Todos os elementos do modelo estão visíveis
+- **PASS se:** Todos os `uses` elements passaram, sem IMPL_MISSING
+- **PARTIAL se:** Algum element usado não tem `@impl` → NÃO marcar `@live`
+- **FAIL se:** Um ou mais elements falharam na verificação
 
 ### Action (imperativa — `calls`)
 - **O que verificar:** HTTP call correto ao executar a ação
@@ -65,11 +68,78 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 - **PASS se:** Sistema rejeita a violação com resposta apropriada
 
 ### Element
-- **O que verificar:** Props do modelo renderizadas, comportamento correto
+- **O que verificar:** Props não-opcionais renderizadas, forms presentes, comportamento correto
 - **Como verificar:**
-  1. Navegar para tela que usa o element
-  2. Screenshot e verificar props visíveis
-- **PASS se:** Todos os props declarados estão presentes e corretos
+  1. Navegar para tela que usa o element (via Fase 2 sweep ou incidentalmente em Fase 1)
+  2. `take_snapshot` e buscar element pelo nome (hint: `@impl` path = nome do componente)
+  3. Verificar props por tipo (ver seção "Element — Verificação por Prop" abaixo)
+  4. Verificar forms declarados: campos existem como inputs?
+- **PASS se:** Todos os `resolvedProps` não-opcionais visíveis, forms corretos
+- **Element `@abstract`:** pular (não é renderizado diretamente)
+- **Element já com `@live`:** pular (não re-verificar)
+
+## Screen — Verificação Fase 2 (Sweep Direto)
+
+Após a Fase 1 (journeys), verificar screens com `@impl` que não foram cobertas pelas journeys.
+
+**Quando usar:**
+- Screen tem `@impl` mas não aparece em nenhuma journey verificada
+- `mfd_live list-pending` lista a screen como pendente
+
+**Como navegar até a screen:**
+1. Usar o grafo de navegação construído a partir das actions:
+   - `action { from ScreenA | ok -> ScreenB }` = edge ScreenA → ScreenB
+   - BFS a partir do root (URL base)
+2. Caminho encontrado → navegar step-by-step pelas actions intermediárias
+3. Caminho não encontrado → pedir URL direta ao usuário
+4. Usuário não sabe → `NAVIGATION_UNKNOWN` → pular e reportar
+
+**O que verificar:**
+- Para cada `uses ElementName -> alias` na screen:
+  - Element renderizado no DOM?
+  - Props não-opcionais visíveis?
+  - Forms declarados no element presentes como inputs?
+- Para cada form declarado diretamente na screen: campos existem?
+
+**Critérios de status:**
+- **PASS:** todos `uses` passaram, sem IMPL_MISSING → `mfd_live mark` + `mfd_verify mark`
+- **PARTIAL:** algum element sem `@impl` (IMPL_MISSING) → NÃO marcar `@live`, reportar
+- **FAIL:** element falhou na verificação → NÃO marcar `@live`
+
+## Element — Verificação por Prop
+
+Ao verificar um element, verificar cada prop por tipo semântico:
+
+| Tipo de prop | O que verificar |
+|-------------|----------------|
+| `string`, `number` | Texto/valor visível no DOM (qualquer representação) |
+| `boolean` | Estado visual presente: toggle ligado/desligado, badge, ícone condicional |
+| Entity reference (ex: `prop user: User`) | Ao menos um campo da entidade renderizado (ex: `user.name`) |
+| Array (ex: `prop items: Item[]`) | Ao menos um item renderizado; lista/tabela presente |
+| Prop opcional (`tipo?`) | Ausência é aceitável — não falhar |
+
+**`@impl` path como hint de busca no DOM:**
+- `@impl(src/components/BookCard.tsx)` → procurar componente "BookCard" no snapshot/DOM
+- Usar `take_snapshot` e buscar pelo nome do componente no a11y tree
+
+**Element `@abstract`:** pular — não é instanciado diretamente, não verificar
+
+**Element em múltiplas screens:** marcar `@live` somente no primeiro PASS; se já tem `@live`, pular
+
+## Tracking de Screens Cobertas (Fase 1 → Fase 2)
+
+```
+Durante Fase 1 — para cada JourneyStep verificado:
+  visitadosPorJourney.add(step.from)
+  visitadosPorJourney.add(step.to)
+
+Início da Fase 2:
+  screens pendentes = screens com @impl e sem @live − visitadosPorJourney
+
+  Para obter lista: mfd_live list-pending (filtrar type=screen e type=element)
+```
+
+Este mecanismo garante que a Fase 2 não re-verifica screens já cobertas incidentalmente pelas journeys.
 
 ## Classificação de Falhas — Critério de Autonomia
 
@@ -117,9 +187,22 @@ Refinamento: Para, explica o conflito, aguarda decisão do usuário.
 
 ## Atualização de @live e @verified
 
+**Fase 1 — Journeys:**
+
 Após cada journey PASS completa:
 1. `mfd_live mark` → incrementa @live(N) no construto journey
 2. `mfd_verify mark` → incrementa @verified(N) no mesmo construto
+
+**Fase 2 — Screens e Elements:**
+
+Após screen PASS (todos `uses` passaram, sem IMPL_MISSING):
+1. `mfd_live mark` + `mfd_verify mark` no construto `screen`
+
+Após element PASS (primeira screen em que foi verificado):
+1. `mfd_live mark` + `mfd_verify mark` no construto `element`
+
+Screen PARTIAL (algum element sem `@impl`) → NÃO marcar `@live`
+Element sem `@impl` → IMPL_MISSING → não bloqueia a screen inteira, mas torna-a PARTIAL
 
 Touchdown é validação ao vivo = forma adicional de confiança → incrementa ambos.
 

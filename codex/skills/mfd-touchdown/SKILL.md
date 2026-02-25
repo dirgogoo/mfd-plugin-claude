@@ -43,6 +43,7 @@ Então carregar o modelo:
 ```
 mfd_query file="<arquivo.mfd>" type="journey" resolve_includes=true
 mfd_query file="<arquivo.mfd>" type="screen" resolve_includes=true
+mfd_query file="<arquivo.mfd>" type="element" resolve_includes=true
 mfd_query file="<arquivo.mfd>" type="action" resolve_includes=true
 mfd_query file="<arquivo.mfd>" type="api" resolve_includes=true
 ```
@@ -53,7 +54,9 @@ Se não fornecida nos argumentos, perguntar ao usuário:
 - URL base da aplicação (ex: `http://localhost:3000`)
 - Credenciais para cada `@persona` das journeys
 
-### Passo 3 — Para Cada Journey com @impl
+### Passo 3 — Fase 1: Para Cada Journey com @impl
+
+Manter um set `visitadosPorJourney = {}` de screens verificadas durante as journeys.
 
 Para cada journey (prioridade: journeys com `@impl` mas sem `@live`):
 
@@ -78,8 +81,74 @@ Para cada journey (prioridade: journeys com `@impl` mas sem `@live`):
    - API calls devem corresponder ao `calls` das actions
    - Respostas devem corresponder aos tipos da API do modelo
 7. Registrar PASS ou FAIL com evidência
+8. **Adicionar ao set:** `visitadosPorJourney.add(step.from)` e `visitadosPorJourney.add(step.to)`
 
-### Passo 4 — Classificação de Falhas
+### Passo 3.5 — Construir Grafo de Navegação
+
+Após todas as journeys, construir um mapa de adjacência com as actions carregadas no Passo 1:
+
+```
+Para cada action com @impl:
+  action { from ScreenA | resultado -> ScreenB } = edge ScreenA → ScreenB
+
+Resultado: mapa adjacência { ScreenA: [ScreenB, ScreenC], ... }
+```
+
+Este grafo será usado na Fase 2 para encontrar caminhos até screens não cobertas pelas journeys.
+
+### Passo 4 — Fase 2: Screen/Element Sweep
+
+```
+screens pendentes = screens com @impl e sem @live − visitadosPorJourney
+```
+
+Para obter a lista:
+```
+mfd_live list-pending file="<arquivo.mfd>" component="<Comp>"
+```
+(filtrar resultados para type=screen e type=element)
+
+**Para cada screen pendente:**
+
+1. **Encontrar caminho via grafo de navegação:**
+   - BFS a partir do root (URL base = ponto de entrada)
+   - Encontrado → navegar step-by-step pelas actions que formam o caminho
+   - Não encontrado → pedir URL direta ao usuário
+   - Usuário não sabe → `NAVIGATION_UNKNOWN` → pular, registrar no relatório
+
+2. Navegar para a URL da screen (`mcp__chrome-devtools__navigate_page`)
+
+3. `mcp__chrome-devtools__take_screenshot`
+
+4. **Para cada `uses ElementName -> alias` na screen:**
+   a. Obter props do element (já em memória do Passo 1)
+   b. Verificar no DOM: element renderizado? (`take_snapshot` + busca pelo nome)
+   c. Se element `@abstract`: pular (não é renderizado diretamente)
+   d. Se element sem `@impl`: registrar `IMPL_MISSING` → screen fica PARTIAL
+   e. Para cada prop não-opcional do element: dados visíveis no DOM?
+   f. Para forms do element: campos existem como inputs?
+   g. PASS → `mfd_live mark` + `mfd_verify mark` no element (somente no primeiro PASS; se já tem @live, não re-verificar)
+   h. FAIL → classificar (CODE_BUG / CONTRACT_MISMATCH)
+
+5. **Para cada form declarado diretamente na screen:** verificar que campos existem como inputs
+
+6. **Determinar status da screen:**
+   - **PASS** (todos os `uses` passaram, sem IMPL_MISSING):
+     ```
+     mfd_live mark file="<arquivo.mfd>" construct="<screen_name>"
+     mfd_verify mark file="<arquivo.mfd>" construct="<screen_name>"
+     ```
+   - **PARTIAL** (algum element sem `@impl`): NÃO marcar `@live` — registrar no relatório
+   - **FAIL** (element falhou na verificação): NÃO marcar `@live`
+
+**Regras de element:**
+- Element `@abstract`: pular (não renderizado diretamente)
+- Element já com `@live`: não re-verificar (skip)
+- Prop opcional (`tipo?`): ausência é aceitável — não falhar
+- `@impl` path como hint: nome do arquivo = nome do componente a buscar no DOM (ex: `BookCard.tsx` → buscar componente BookCard)
+- Entity reference prop: ao menos um campo da entidade deve estar renderizado
+
+### Passo 5 — Classificação de Falhas
 
 | Categoria | Critério | Autonomia |
 |-----------|---------|-----------|
@@ -97,7 +166,7 @@ Para cada journey (prioridade: journeys com `@impl` mas sem `@live`):
 
 **Em caso de dúvida:** o modelo está certo. O código está errado.
 
-### Passo 5 — Marcar @live e @verified
+### Passo 6 — Marcar @live e @verified (Fase 1)
 
 Após cada journey que passou completamente:
 ```
@@ -107,7 +176,9 @@ mfd_verify mark file="<arquivo.mfd>" construct="<journey_name>"
 
 Touchdown é uma forma adicional de confiança: incrementa tanto `@live` quanto `@verified`.
 
-### Passo 6 — Relatório Final
+(Fase 2: marcar screens e elements individualmente conforme Passo 4.)
+
+### Passo 7 — Relatório Final
 
 ```markdown
 # Relatório Touchdown
@@ -116,12 +187,31 @@ Touchdown é uma forma adicional de confiança: incrementa tanto `@live` quanto 
 **URL:** <url_base>
 **Data:** <data>
 
-## Resumo
+## Resumo — Fase 1 (Journeys)
 
 | Journey | Status | @live | Observações |
 |---------|--------|-------|-------------|
 | buscar_produto | PASS | @live(1) | — |
 | checkout | FAIL | — | CONTRACT_MISMATCH: API retorna 404 |
+
+## Fase 2 — Screen/Element Sweep
+
+| Screen | Status | @live | Elementos | Obs |
+|--------|--------|-------|-----------|-----|
+| AdminPanel | PASS | @live(1) | UserTable(PASS), StatsCard(PASS) | — |
+| ProfileEdit | PARTIAL | — | AvatarUpload(IMPL_MISSING) | sem @impl |
+| SettingsPanel | NAVIGATION_UNKNOWN | — | — | fornecer URL direta |
+
+### Elementos Verificados
+| Element | Status | @live | Verificado em | Obs |
+|---------|--------|-------|---------------|-----|
+| UserTable | PASS | @live(1) | AdminPanel | props id,name,email visíveis |
+| StatsCard | PASS | @live(1) | AdminPanel | props count,label visíveis |
+
+### Screens Não Alcançadas
+| Screen | Razão | Ação necessária |
+|--------|-------|-----------------|
+| SettingsPanel | NAVIGATION_UNKNOWN | fornecer URL direta |
 
 ## Detalhes
 
@@ -147,9 +237,9 @@ Touchdown é uma forma adicional de confiança: incrementa tanto `@live` quanto 
 | Construto | O que verificar |
 |-----------|----------------|
 | `journey` | Cada transição (TelaA→TelaB:trigger) executada com sucesso |
-| `screen` | Elementos visíveis na tela, forms presentes |
-| `action` | Network call corresponde ao `calls`, resultado navega para tela correta |
+| `screen` | **(Fase 1)** verificado durante journey; **(Fase 2)** todos `uses` elements renderizados, forms corretos |
+| `element` | Todos `resolvedProps` não-opcionais visíveis; forms presentes; @impl path como hint de busca no DOM |
+| `action` | Network call corresponde ao `calls`, resultado navega para tela correta; signals disparam |
 | `api` | Endpoint existe, método correto, response schema corresponde ao modelo |
 | `rule` | Violação da regra é rejeitada pelo sistema |
-| `element` | Props do modelo estão renderizadas |
 | `flow` | Fluxo executado de ponta a ponta sem erros |
