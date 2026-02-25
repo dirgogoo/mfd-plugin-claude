@@ -16,6 +16,8 @@ O Modo Touchdown fecha o gap entre Council (verificação estática) e realidade
 
 **Verificar comportamento, não só presença.** Não basta confirmar que um elemento existe — é preciso observar como a interface reage. Screenshot antes da ação, executa, screenshot depois: a UI mudou conforme o modelo define? Loading apareceu? Botão desabilitou? Mensagem de sucesso/erro exibiu? Dado atualizou? Navegação aconteceu? O comportamento da interface É o teste.
 
+**Verificar logs após cada interação.** Após executar qualquer ação significativa (click, submit, navegação), consultar os logs do browser via `get_console_logs`. Erros de JS, exceptions não tratadas, chamadas com falha silenciosa e warnings críticos são bugs — mesmo que a UI aparente normalidade.
+
 ## Protocolo de Verificação por Tipo de Construto
 
 ### Journey
@@ -113,8 +115,31 @@ Em E2E, o que valida o comportamento é a sequência de estados da interface —
 3. take_screenshot imediatamente — captura estado transitório (loading, disabled)
 4. Aguardar resposta
 5. take_screenshot — captura estado final
-6. Comparar os 3 screenshots: a sequência faz sentido com o que o modelo define?
+6. get_console_logs — verificar logs do browser
+7. Comparar os 3 screenshots + logs: a sequência faz sentido com o que o modelo define?
 ```
+
+### Verificação de Logs (get_console_logs)
+
+Após cada interação significativa, consultar os logs do browser. O que procurar:
+
+| Tipo de log | Significado | Categoria |
+|-------------|-------------|-----------|
+| `error` — JS exception não tratada | Bug no código | CODE_BUG |
+| `error` — fetch/XHR falhou silenciosamente | UI não informou o usuário | CODE_BUG |
+| `error` — component crash / render error | Elemento não renderizou | CODE_BUG |
+| `warn` — prop inválida / type mismatch | Contrato quebrado entre componentes | CODE_BUG |
+| `warn` — deprecated API usage | Dívida técnica (registrar, não bloquear) | NOT_MODELED |
+| `error` — 401/403 inesperado | Problema de auth/permissão | ENV_ISSUE ou CODE_BUG |
+| logs normais (`info`, `debug`) | Esperado — ignorar | — |
+
+**Regra:** se a UI parece normal mas os logs têm `error`, é CODE_BUG — a interface está escondendo um problema. O usuário não sabe que algo falhou.
+
+**Quando verificar logs:**
+- Após cada submit de form
+- Após cada navegação de tela
+- Após cada action que dispara chamada de rede
+- Após cada transição de journey
 
 ### Mapeamento modelo → estado visual
 

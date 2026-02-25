@@ -94,8 +94,10 @@ Para cada journey (prioridade: journeys com `@impl` mas sem `@live`):
    - `mcp__chrome-devtools__list_network_requests`
    - API calls devem corresponder ao `calls` das actions
    - Respostas devem corresponder aos tipos da API do modelo
-7. Registrar PASS ou FAIL com evidência
-8. **Adicionar ao set:** `visitadosPorJourney.add(step.from)` e `visitadosPorJourney.add(step.to)`
+7. **Verificar logs do browser:** `mcp__chrome-devtools__get_console_logs`
+   - Erros JS, exceptions, fetch silencioso falhando = CODE_BUG mesmo que UI pareça normal
+8. Registrar PASS ou FAIL com evidência
+9. **Adicionar ao set:** `visitadosPorJourney.add(step.from)` e `visitadosPorJourney.add(step.to)`
 
 ### Passo 3.5 — Construir Grafo de Navegação
 
