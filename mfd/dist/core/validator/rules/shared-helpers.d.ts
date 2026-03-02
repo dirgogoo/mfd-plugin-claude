@@ -23,6 +23,43 @@ export declare function getEntityFields(typeName: string, entities: {
     }[];
 }[]): Set<string> | null;
 /**
+ * Get ALL field names for an entity including inherited fields from @abstract parents.
+ * Walks the inheritance chain (extends) to collect fields from ancestors.
+ * Does NOT include interface fields (interfaces define contracts, not inherited data).
+ */
+export declare function getAllEntityFields(entityName: string, entities: {
+    name: string;
+    extends: string | null;
+    fields: {
+        name: string;
+        decorators: {
+            name: string;
+        }[];
+    }[];
+}[], visited?: Set<string>): Set<string>;
+/**
+ * Check if an entity (including inherited fields) has an id or @unique field.
+ */
+export declare function entityHasIdentification(entity: {
+    name: string;
+    extends: string | null;
+    fields: {
+        name: string;
+        decorators: {
+            name: string;
+        }[];
+    }[];
+}, entities: {
+    name: string;
+    extends: string | null;
+    fields: {
+        name: string;
+        decorators: {
+            name: string;
+        }[];
+    }[];
+}[]): boolean;
+/**
  * Collect all type names referenced by TypeExpr nodes across the entire model.
  * Walks entity fields, element props/forms, flow params/return, operation params/return,
  * API endpoint types, screen forms, event/signal fields, and inline object fields recursively.

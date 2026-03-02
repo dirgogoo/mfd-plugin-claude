@@ -49,6 +49,50 @@ export function getEntityFields(typeName, entities) {
     return new Set(entity.fields.map((f) => f.name));
 }
 /**
+ * Get ALL field names for an entity including inherited fields from @abstract parents.
+ * Walks the inheritance chain (extends) to collect fields from ancestors.
+ * Does NOT include interface fields (interfaces define contracts, not inherited data).
+ */
+export function getAllEntityFields(entityName, entities, visited = new Set()) {
+    if (visited.has(entityName))
+        return new Set(); // cycle guard
+    visited.add(entityName);
+    const entity = entities.find((e) => e.name === entityName);
+    if (!entity)
+        return new Set();
+    const allFields = new Set(entity.fields.map((f) => f.name));
+    if (entity.extends) {
+        for (const f of getAllEntityFields(entity.extends, entities, visited)) {
+            allFields.add(f);
+        }
+    }
+    return allFields;
+}
+/**
+ * Check if an entity (including inherited fields) has an id or @unique field.
+ */
+export function entityHasIdentification(entity, entities) {
+    // Check direct + inherited fields for "id"
+    const allFields = getAllEntityFields(entity.name, entities);
+    if (allFields.has("id"))
+        return true;
+    // Check direct + inherited fields for @unique
+    return hasUniqueInChain(entity.name, entities, new Set());
+}
+function hasUniqueInChain(entityName, entities, visited) {
+    if (visited.has(entityName))
+        return false;
+    visited.add(entityName);
+    const entity = entities.find((e) => e.name === entityName);
+    if (!entity)
+        return false;
+    if (entity.fields.some((f) => f.decorators.some((d) => d.name === "unique")))
+        return true;
+    if (entity.extends)
+        return hasUniqueInChain(entity.extends, entities, visited);
+    return false;
+}
+/**
  * Collect all type names referenced by TypeExpr nodes across the entire model.
  * Walks entity fields, element props/forms, flow params/return, operation params/return,
  * API endpoint types, screen forms, event/signal fields, and inline object fields recursively.

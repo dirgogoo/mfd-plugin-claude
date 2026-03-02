@@ -1,4 +1,5 @@
 import { collectModel } from "../collect.js";
+import { entityHasIdentification, getAllEntityFields } from "./shared-helpers.js";
 /**
  * Quality guard rules for modeling best practices:
  *
@@ -31,10 +32,9 @@ export function qualityGuards(doc) {
         const isAbstract = entity.decorators.some((d) => d.name === "abstract");
         const isInterface = entity.decorators.some((d) => d.name === "interface");
         // ENTITY_NO_ID: skip @abstract, @interface, and DTOs
+        // Check inherited fields (extends chain) for id/@unique
         if (!isAbstract && !isInterface && !isDto(entity.name)) {
-            const hasId = entity.fields.some((f) => f.name === "id");
-            const hasUnique = entity.fields.some((f) => f.decorators.some((d) => d.name === "unique"));
-            if (!hasId && !hasUnique) {
+            if (!entityHasIdentification(entity, model.entities)) {
                 diagnostics.push({
                     code: "ENTITY_NO_ID",
                     severity: "warning",
@@ -45,14 +45,18 @@ export function qualityGuards(doc) {
             }
         }
         // ENTITY_EMPTY: skip @abstract and @interface (can be markers)
-        if (!isAbstract && !isInterface && entity.fields.length === 0) {
-            diagnostics.push({
-                code: "ENTITY_EMPTY",
-                severity: "warning",
-                message: `Entity '${entity.name}' has no fields`,
-                location: entity.loc,
-                help: "Add fields to define the entity's structure, or use @abstract/@interface if it's a base type",
-            });
+        // Check inherited fields too — entity extending a parent with fields is not empty
+        if (!isAbstract && !isInterface) {
+            const totalFields = getAllEntityFields(entity.name, model.entities).size;
+            if (totalFields === 0) {
+                diagnostics.push({
+                    code: "ENTITY_EMPTY",
+                    severity: "warning",
+                    message: `Entity '${entity.name}' has no fields`,
+                    location: entity.loc,
+                    help: "Add fields to define the entity's structure, or use @abstract/@interface if it's a base type",
+                });
+            }
         }
         // ENTITY_DUPLICATE_FIELD: always check (concrete and abstract)
         const fieldNames = new Map();
@@ -70,15 +74,18 @@ export function qualityGuards(doc) {
                 fieldNames.set(field.name, field.loc.start.line);
             }
         }
-        // ENTITY_TOO_MANY_FIELDS: skip @abstract
-        if (!isAbstract && entity.fields.length >= 15) {
-            diagnostics.push({
-                code: "ENTITY_TOO_MANY_FIELDS",
-                severity: "warning",
-                message: `Entity '${entity.name}' has ${entity.fields.length} fields (threshold: 15) — consider splitting`,
-                location: entity.loc,
-                help: "Extract related fields into separate entities to improve cohesion",
-            });
+        // ENTITY_TOO_MANY_FIELDS: skip @abstract, count inherited fields
+        if (!isAbstract) {
+            const totalFieldCount = getAllEntityFields(entity.name, model.entities).size;
+            if (totalFieldCount >= 15) {
+                diagnostics.push({
+                    code: "ENTITY_TOO_MANY_FIELDS",
+                    severity: "warning",
+                    message: `Entity '${entity.name}' has ${totalFieldCount} fields (threshold: 15) — consider splitting`,
+                    location: entity.loc,
+                    help: "Extract related fields into separate entities to improve cohesion",
+                });
+            }
         }
     }
     for (const flow of model.flows) {

@@ -37,7 +37,11 @@ You are now in **MFD modeling mode**. Your job is to generate or edit `.mfd` fil
    ```bash
    npx mfd validate <file>
    ```
-   Fix any errors before presenting to the user.
+   Fix ALL errors and warnings before presenting to the user.
+   The model is only ready when `mfd validate` exits with code 0 (no errors, no warnings).
+   - Exit code 1 = errors → fix before anything else.
+   - Exit code 2 = warnings only → still must fix before presenting.
+   Re-validate after every fix until exit code is 0.
 
 4. **Show stats.** Run:
    ```bash
@@ -50,7 +54,12 @@ You are now in **MFD modeling mode**. Your job is to generate or edit `.mfd` fil
    - Generate `shared.mfd` for entities/enums used by 2+ components
    - For smaller projects (< 3 components, < 200 lines), a single file is acceptable
 
-6. **Present the result.** Show:
+6. **Present the result.** Before presenting, run validate one final time:
+   ```bash
+   npx mfd validate <file>
+   ```
+   If exit code != 0 → do NOT present. Fix remaining issues and re-validate.
+   Only present when exit code = 0. Then show:
    - A natural language summary of the model
    - The key design decisions made
    - Completeness metrics

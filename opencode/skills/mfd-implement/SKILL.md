@@ -34,7 +34,12 @@ Read an MFD model and generate implementation code that follows the model as a c
    ```bash
    npx mfd validate "$MFD_FILE"
    ```
-   If there are errors, fix them before implementing. For multi-file models, validate from `main.mfd` (auto-resolve handles imports).
+   For multi-file models, validate from `main.mfd` (auto-resolve handles imports).
+   - Exit code 1 (errors): cannot proceed — the model is invalid. Do NOT implement.
+   - Exit code 2 (warnings): STOP. Do NOT implement.
+     → Inform the user: "O modelo tem warnings pendentes. Resolva-os antes de implementar."
+     → Return to modeling phase: the user should run `/mfd-model` to fix the warnings.
+     → Implementation only proceeds when exit code = 0 (clean model).
 
 3. **Show stats for context.** Run:
    ```bash

@@ -10,7 +10,7 @@
         {
             "name": "Model-First-Development",
             "description": "Model-First Development — parser, validator, diagrams, contracts, visual dashboard, and LSP for .mfd files",
-            "version": "1.2.54",
+            "version": "1.2.55",
             "author": {
                 "name": "MFD Project",
                 "email": "mfd@example.com"
@@ -21,7 +21,7 @@
         {
             "name": "MFD-Council",
             "description": "Multi-agent review council for MFD models — 3 perspectives review and auto-fix until consensus",
-            "version": "0.1.37",
+            "version": "0.1.38",
             "author": {
                 "name": "MFD Project",
                 "email": "mfd@example.com"
