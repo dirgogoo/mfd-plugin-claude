@@ -25,7 +25,13 @@ Display comprehensive statistics and implementation progress for an MFD model.
    npx mfd validate "$ARGUMENTS"
    ```
 
-3. **Present a summary.** Format the output into a clear status report:
+3. **Run file coverage.** Execute:
+   ```
+   mfd_coverage file="$ARGUMENTS" scan_dir="src/"
+   ```
+   This scans the source directory and identifies which files are tracked by `@impl` and which are orphans.
+
+4. **Present a summary.** Format the output into a clear status report:
 
    ```
    ## Model Status: [system name]
@@ -40,6 +46,11 @@ Display comprehensive statistics and implementation progress for an MFD model.
    - @impl: X/Y (Z%)
    - @tests: X/Y (Z%)
 
+   ### File Coverage
+   - Tracked: X/Y files (Z%)
+   - Untracked (orphan) files: N
+   - @impl paths outside scan: N
+
    ### Health
    - Validation: [pass/fail with error count]
    - Circular dependencies: [yes/no]
@@ -49,8 +60,9 @@ Display comprehensive statistics and implementation progress for an MFD model.
    - [Suggest what to work on next based on missing @impl/@tests]
    ```
 
-4. **Recommend next steps.** Based on completeness:
+5. **Recommend next steps.** Based on completeness:
    - If `@impl` is low: suggest which components to implement first
    - If `@tests` is low: suggest writing tests for implemented constructs
    - If `@status` is low: suggest reviewing and marking construct statuses
    - If there are validation warnings: suggest fixing them
+   - If file coverage is low: suggest running `mfd_coverage` to identify orphan files and adding `@impl` references

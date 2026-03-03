@@ -40,6 +40,11 @@ Query the MFD model to answer questions about the system. The model is the singl
 
    For multi-file models with `import` directives, the CLI auto-resolves imports. Simply pass the entry point (`main.mfd`).
 
+   For **coverage queries** ("which files are not in the model?", "orphan files", "untracked code"):
+   ```
+   mfd_coverage file="$MFD_FILE" scan_dir="src/"
+   ```
+
 3. **Answer from the model ONLY.** Using the parsed AST and stats:
    - Identify which constructs are relevant to the question
    - Cite the model directly (entity names, field types, flow steps, etc.)

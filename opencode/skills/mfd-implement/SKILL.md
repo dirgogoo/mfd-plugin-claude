@@ -86,6 +86,12 @@ Read an MFD model and generate implementation code that follows the model as a c
 
    **DEPRECATED:** `@impl(done)`, `@impl(backend)`, `@impl(frontend)`, `@impl(partial)` — use file paths instead.
 
+7. **Verify file coverage.** After updating `@impl`, run:
+   ```
+   mfd_coverage file="$MFD_FILE" scan_dir="src/"
+   ```
+   Verify that all newly created files appear as tracked. Coverage should not decrease after implementation.
+
 ## @impl Rules
 
 - Update `@impl` IMMEDIATELY after implementing each construct — do not batch at the end

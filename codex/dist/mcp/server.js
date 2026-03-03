@@ -8,7 +8,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleTestContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleVerify, handleLive, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
+import { handleParse, handleValidate, handleStats, handleRender, handleContract, handleTestContract, handleQuery, handlePrompt, handleContext, handleDiff, handleTrace, handleCoverage, handleVerify, handleLive, handleVisualStart, handleVisualStop, handleVisualRestart, handleVisualNavigate, VISUAL_NAV_VIEWS, } from "./tools/index.js";
 import { handleListResources, handleReadResource, } from "./resources/index.js";
 const server = new Server({
     name: "mfd-tools",
@@ -355,6 +355,43 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             },
         },
         {
+            name: "mfd_coverage",
+            description: "Reverse traceability: scan a source directory and identify files NOT referenced by any @impl in the model. Reports tracked (model-linked) and untracked (orphan) files with coverage percentage.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file: {
+                        type: "string",
+                        description: "Path to the .mfd file",
+                    },
+                    scan_dir: {
+                        type: "string",
+                        description: "Directory to scan (e.g., 'src/')",
+                    },
+                    component: {
+                        type: "string",
+                        description: "Filter @impl by component",
+                    },
+                    extensions: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "File extensions to include (default: .ts, .tsx, .js, .jsx, .vue, .svelte, .css, .scss, .html, .json)",
+                    },
+                    exclude: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Patterns to exclude by substring match (default: node_modules, dist, .d.ts, .test., .spec., __tests__, __mocks__)",
+                    },
+                    resolve_includes: {
+                        type: "boolean",
+                        description: "Whether to resolve include directives (default: false)",
+                        default: false,
+                    },
+                },
+                required: ["file", "scan_dir"],
+            },
+        },
+        {
             name: "mfd_verify",
             description: "Model verification tracker using @verified decorator. mark: increments @verified(N) on a construct (council approval). strip: removes @verified from a construct (drift found). strip-all: removes ALL @verified from a file (after any edit). list-pending: lists constructs with @impl but @verified absent or below threshold. mark-from-file: suggests which constructs a code file likely implements (for @impl tracking).",
             inputSchema: {
@@ -560,6 +597,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request, _extra) => {
                 return handleDiff(args);
             case "mfd_trace":
                 return handleTrace(args);
+            case "mfd_coverage":
+                return handleCoverage(args);
             case "mfd_verify":
                 return handleVerify(args);
             case "mfd_live":
