@@ -1,16 +1,14 @@
-import type { CollectedModel } from "../core/validator/collect.js";
-import type { ModelStats } from "../core/utils/stats.js";
-import type { Relationships } from "../core/relationships/index.js";
-export type DiagramType = "component" | "entity" | "state" | "flow" | "screen" | "journey" | "deployment";
-export type ConstructType = "element" | "entity" | "enum" | "flow" | "api" | "state" | "event" | "signal" | "rule" | "screen" | "journey" | "operation" | "action" | "node";
+import type { CollectedModelV2 } from "./v2-types.js";
+export type DiagramType = "domain" | "concept" | "lifecycle" | "capability" | "objective" | "invariant" | "property";
+export type ConstructType = "concept" | "enum" | "capability" | "invariant" | "property" | "objective";
 export interface DiagramSet {
-    component: string;
-    entity: string;
-    state: string;
-    flow: string;
-    screen: string;
-    journey: string;
-    deployment: string;
+    domain: string;
+    concept: string;
+    lifecycle: string;
+    capability: string;
+    objective: string;
+    invariant: string;
+    property: string;
 }
 export interface ValidationResult {
     errors: {
@@ -24,9 +22,9 @@ export interface ValidationResult {
         column?: number;
     }[];
 }
-export interface ComponentInfo {
+export interface DomainInfo {
     name: string;
-    status: string | null;
+    filePath: string;
     constructCounts: Record<string, number>;
     implDone: number;
     implTotal: number;
@@ -36,15 +34,47 @@ export interface ComponentInfo {
 export interface ModelSnapshot {
     systemName: string;
     systemVersion: string | null;
-    model: CollectedModel;
+    model: CollectedModelV2;
     diagrams: DiagramSet;
-    stats: ModelStats;
+    stats: StatsV2;
     validation: ValidationResult;
-    relationships: Map<string, Relationships>;
-    components: ComponentInfo[];
-    /** Maps "type:name" (e.g. "entity:User") → component name. Handles both nested and top-level constructs. */
-    constructComponentMap: Map<string, string>;
+    domains: DomainInfo[];
+    /** Maps "type:name" (e.g. "concept:User") → domain name. */
+    constructDomainMap: Map<string, string>;
     timestamp: number;
     filePath: string;
+}
+/** Simplified stats for v2 models. */
+export interface StatsV2 {
+    counts: {
+        concepts: number;
+        enums: number;
+        capabilities: number;
+        invariants: number;
+        properties: number;
+        objectives: number;
+        total: number;
+    };
+    completeness: {
+        total: number;
+        withImpl: number;
+        implPct: number;
+        withVerified: number;
+        verifiedPct: number;
+    };
+    domainCompleteness: DomainCompleteness[];
+}
+export interface DomainCompleteness {
+    name: string;
+    constructs: {
+        type: string;
+        name: string;
+        impl: string[];
+        verified: number;
+    }[];
+    implDone: number;
+    implTotal: number;
+    verifiedDone: number;
+    verifiedTotal: number;
 }
 //# sourceMappingURL=types.d.ts.map

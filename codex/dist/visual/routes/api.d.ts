@@ -1,6 +1,6 @@
 /**
  * JSON API routes for model data.
- * Uses the central constructComponentMap for correct construct→component mapping.
+ * Uses the central constructDomainMap for correct construct->domain mapping.
  */
 import { Hono } from "hono";
 import type { ModelSnapshot } from "../types.js";

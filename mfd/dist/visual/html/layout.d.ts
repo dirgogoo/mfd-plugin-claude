@@ -1,9 +1,9 @@
 /**
  * Layout shell: Scope Bar + Dynamic Nav Rail + Canvas + external deps
- * Nav rail shows components from the model, not fixed diagram types.
+ * Nav rail shows domains from the model, not fixed diagram types.
  */
-import type { ComponentInfo } from "../types.js";
-export interface ComponentTab {
+import type { DomainInfo } from "../types.js";
+export interface DomainTab {
     id: string;
     label: string;
     count: number;
@@ -11,20 +11,20 @@ export interface ComponentTab {
 export interface ConstructContext {
     type: string;
     name: string;
-    component: string;
+    domain: string;
 }
 export interface LayoutOptions {
     systemName: string;
     systemVersion: string | null;
     activePage: string;
-    activeComponent?: string;
+    activeDomain?: string;
     breadcrumbs?: {
         label: string;
         href?: string;
     }[];
     title?: string;
-    components?: ComponentInfo[];
-    componentTabs?: ComponentTab[];
+    domains?: DomainInfo[];
+    domainTabs?: DomainTab[];
     activeTab?: string;
     constructContext?: ConstructContext;
 }

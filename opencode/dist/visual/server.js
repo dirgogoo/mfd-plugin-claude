@@ -141,7 +141,7 @@ function describeChanges(old, next) {
     const parts = [];
     const oldCounts = old.stats.counts;
     const newCounts = next.stats.counts;
-    const types = ["entities", "flows", "apis", "rules", "states", "events", "screens", "journeys"];
+    const types = ["concepts", "enums", "capabilities", "invariants", "properties", "objectives"];
     for (const type of types) {
         const diff = newCounts[type] - oldCounts[type];
         if (diff > 0)

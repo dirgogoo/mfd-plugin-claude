@@ -1,12 +1,12 @@
 /**
  * JSON API routes for model data.
- * Uses the central constructComponentMap for correct construct→component mapping.
+ * Uses the central constructDomainMap for correct construct->domain mapping.
  */
 import { Hono } from "hono";
 import { getOrLoadTimeline } from "../git-timeline.js";
-import { renderComponentEntityDiagram, renderComponentStateDiagram, renderComponentFlowDiagram, renderComponentScreenDiagram, renderComponentJourneyDiagram, renderComponentDepDiagram, } from "../html/component-diagrams.js";
+import { renderDomainConceptDiagram, renderDomainCapabilityDiagram, renderDomainLifecycleDiagram, renderDomainObjectiveDiagram, renderDomainInvariantDiagram, renderDomainPropertyDiagram, } from "../html/domain-diagrams.js";
 const DIAGRAM_TYPES = [
-    "component", "entity", "state", "flow", "screen", "journey", "deployment",
+    "domain", "concept", "lifecycle", "capability", "objective", "invariant", "property",
 ];
 export function apiRoutes(getSnapshot) {
     const app = new Hono();
@@ -42,76 +42,65 @@ export function apiRoutes(getSnapshot) {
             count: getConstructCount(snapshot, type),
         });
     });
-    app.get("/api/component/:name", (c) => {
+    app.get("/api/domain/:name", (c) => {
         const snapshot = getSnapshot();
         if (!snapshot)
             return c.json({ error: "No model loaded" }, 503);
         const name = c.req.param("name");
-        const comp = snapshot.model.components.find((comp) => comp.name === name);
-        if (!comp) {
-            return c.json({ error: `Component not found: ${name}` }, 404);
+        const domain = snapshot.domains.find((d) => d.name === name);
+        if (!domain) {
+            return c.json({ error: `Domain not found: ${name}` }, 404);
         }
-        const compStats = snapshot.stats.componentCompleteness.find((cs) => cs.name === name);
-        const ccMap = snapshot.constructComponentMap;
+        const domainStats = snapshot.stats.domainCompleteness.find((ds) => ds.name === name);
+        const cdMap = snapshot.constructDomainMap;
         // Gather constructs using central map
-        const entities = snapshot.model.entities.filter((e) => ccMap.get(`entity:${e.name}`) === name);
-        const flows = snapshot.model.flows.filter((f) => ccMap.get(`flow:${f.name}`) === name);
-        const apis = comp.body.filter((b) => b.type === "ApiDecl");
-        const states = snapshot.model.states.filter((s) => ccMap.get(`state:${s.name}`) === name);
-        const events = snapshot.model.events.filter((e) => ccMap.get(`event:${e.name}`) === name);
-        const rules = snapshot.model.rules.filter((r) => ccMap.get(`rule:${r.name}`) === name);
-        const screens = snapshot.model.screens.filter((s) => ccMap.get(`screen:${s.name}`) === name);
-        const journeys = snapshot.model.journeys.filter((j) => ccMap.get(`journey:${j.name}`) === name);
-        const enums = snapshot.model.enums.filter((e) => ccMap.get(`enum:${e.name}`) === name);
-        const deps = comp.body.filter((b) => b.type === "DepDecl");
-        const secrets = comp.body.filter((b) => b.type === "SecretDecl");
+        const concepts = snapshot.model.concepts.filter((c) => cdMap.get(`concept:${c.name}`) === name);
+        const capabilities = snapshot.model.capabilities.filter((c) => cdMap.get(`capability:${c.name}`) === name);
+        const invariants = snapshot.model.invariants.filter((i) => cdMap.get(`invariant:${i.name}`) === name);
+        const properties = snapshot.model.properties.filter((p) => cdMap.get(`property:${p.name}`) === name);
+        const objectives = snapshot.model.objectives.filter((o) => cdMap.get(`objective:${o.name}`) === name);
+        const enums = snapshot.model.enums.filter((e) => cdMap.get(`enum:${e.name}`) === name);
         return c.json({
-            name: comp.name,
-            decorators: comp.decorators,
-            completeness: compStats,
-            deps,
-            secrets,
-            entities,
+            name: domain.name,
+            completeness: domainStats,
+            concepts,
             enums,
-            flows,
-            apis,
-            states,
-            events,
-            rules,
-            screens,
-            journeys,
+            capabilities,
+            invariants,
+            properties,
+            objectives,
         });
     });
-    // Component-scoped diagrams (Phase 8)
-    app.get("/api/component/:name/diagrams", (c) => {
+    // Domain-scoped diagrams
+    app.get("/api/domain/:name/diagrams", (c) => {
         const snapshot = getSnapshot();
         if (!snapshot)
             return c.json({ error: "No model loaded" }, 503);
         const name = c.req.param("name");
-        const comp = snapshot.model.components.find((comp) => comp.name === name);
-        if (!comp) {
-            return c.json({ error: `Component not found: ${name}` }, 404);
+        const domain = snapshot.domains.find((d) => d.name === name);
+        if (!domain) {
+            return c.json({ error: `Domain not found: ${name}` }, 404);
         }
         return c.json({
-            component: name,
+            domain: name,
             diagrams: {
-                entity: renderComponentEntityDiagram(snapshot, name),
-                state: renderComponentStateDiagram(snapshot, name),
-                flow: renderComponentFlowDiagram(snapshot, name),
-                screen: renderComponentScreenDiagram(snapshot, name),
-                journey: renderComponentJourneyDiagram(snapshot, name),
-                dep: renderComponentDepDiagram(snapshot, name),
+                concept: renderDomainConceptDiagram(snapshot, name),
+                capability: renderDomainCapabilityDiagram(snapshot, name),
+                lifecycle: renderDomainLifecycleDiagram(snapshot, name),
+                objective: renderDomainObjectiveDiagram(snapshot, name),
+                invariant: renderDomainInvariantDiagram(snapshot, name),
+                property: renderDomainPropertyDiagram(snapshot, name),
             },
         });
     });
-    app.get("/api/components", (c) => {
+    app.get("/api/domains", (c) => {
         const snapshot = getSnapshot();
         if (!snapshot)
             return c.json({ error: "No model loaded" }, 503);
-        return c.json(snapshot.model.components.map((comp) => ({
-            name: comp.name,
-            status: comp.decorators?.find((d) => d.name === "status"),
-            completeness: snapshot.stats.componentCompleteness.find((cs) => cs.name === comp.name),
+        return c.json(snapshot.domains.map((domain) => ({
+            name: domain.name,
+            constructCounts: domain.constructCounts,
+            completeness: snapshot.stats.domainCompleteness.find((ds) => ds.name === domain.name),
         })));
     });
     // Deep command palette: all constructs indexed
@@ -120,110 +109,74 @@ export function apiRoutes(getSnapshot) {
         if (!snapshot)
             return c.json({ error: "No model loaded" }, 503);
         const items = [];
-        const ccMap = snapshot.constructComponentMap;
+        const cdMap = snapshot.constructDomainMap;
         // Pages
-        items.push({ type: "page", name: "System Overview", component: "", href: "/" });
-        items.push({ type: "page", name: "Progress Dashboard", component: "", href: "/dashboard" });
-        items.push({ type: "page", name: "System Timeline", component: "", href: "/timeline" });
-        // Components
-        for (const comp of snapshot.model.components) {
+        items.push({ type: "page", name: "System Overview", domain: "", href: "/" });
+        items.push({ type: "page", name: "Progress Dashboard", domain: "", href: "/dashboard" });
+        items.push({ type: "page", name: "System Timeline", domain: "", href: "/timeline" });
+        // Domains
+        for (const domain of snapshot.domains) {
             items.push({
-                type: "component",
-                name: comp.name,
-                component: "",
-                href: `/component/${encodeURIComponent(comp.name)}`,
+                type: "domain",
+                name: domain.name,
+                domain: "",
+                href: `/domain/${encodeURIComponent(domain.name)}`,
             });
         }
         // All constructs using central map
-        for (const entity of snapshot.model.entities) {
-            const comp = ccMap.get(`entity:${entity.name}`) ?? "";
+        for (const concept of snapshot.model.concepts) {
+            const domain = cdMap.get(`concept:${concept.name}`) ?? "";
             items.push({
-                type: "entity",
-                name: entity.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/entity/${encodeURIComponent(entity.name)}` : "/",
+                type: "concept",
+                name: concept.name,
+                domain,
+                href: domain ? `/domain/${encodeURIComponent(domain)}/concept/${encodeURIComponent(concept.name)}` : "/",
             });
         }
         for (const en of snapshot.model.enums) {
-            const comp = ccMap.get(`enum:${en.name}`) ?? "";
+            const domain = cdMap.get(`enum:${en.name}`) ?? "";
             items.push({
                 type: "enum",
                 name: en.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/enum/${encodeURIComponent(en.name)}` : "/",
+                domain,
+                href: domain ? `/domain/${encodeURIComponent(domain)}/enum/${encodeURIComponent(en.name)}` : "/",
             });
         }
-        for (const flow of snapshot.model.flows) {
-            const comp = ccMap.get(`flow:${flow.name}`) ?? "";
+        for (const cap of snapshot.model.capabilities) {
+            const domain = cdMap.get(`capability:${cap.name}`) ?? "";
             items.push({
-                type: "flow",
-                name: flow.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/flow/${encodeURIComponent(flow.name)}` : "/",
+                type: "capability",
+                name: cap.name,
+                domain,
+                href: domain ? `/domain/${encodeURIComponent(domain)}/capability/${encodeURIComponent(cap.name)}` : "/",
             });
         }
-        for (const state of snapshot.model.states) {
-            const comp = ccMap.get(`state:${state.name}`) ?? "";
+        for (const inv of snapshot.model.invariants) {
+            const domain = cdMap.get(`invariant:${inv.name}`) ?? "";
             items.push({
-                type: "state",
-                name: state.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/state/${encodeURIComponent(state.name)}` : "/",
-                detail: `on ${state.enumRef}`,
+                type: "invariant",
+                name: inv.name,
+                domain,
+                href: domain ? `/domain/${encodeURIComponent(domain)}/invariant/${encodeURIComponent(inv.name)}` : "/",
             });
         }
-        for (const event of snapshot.model.events) {
-            const comp = ccMap.get(`event:${event.name}`) ?? "";
+        for (const prop of snapshot.model.properties) {
+            const domain = cdMap.get(`property:${prop.name}`) ?? "";
             items.push({
-                type: "event",
-                name: event.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/event/${encodeURIComponent(event.name)}` : "/",
+                type: "property",
+                name: prop.name,
+                domain,
+                href: domain ? `/domain/${encodeURIComponent(domain)}/property/${encodeURIComponent(prop.name)}` : "/",
             });
         }
-        for (const rule of snapshot.model.rules) {
-            const comp = ccMap.get(`rule:${rule.name}`) ?? "";
+        for (const obj of snapshot.model.objectives) {
+            const domain = cdMap.get(`objective:${obj.name}`) ?? "";
             items.push({
-                type: "rule",
-                name: rule.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/rule/${encodeURIComponent(rule.name)}` : "/",
+                type: "objective",
+                name: obj.name,
+                domain,
+                href: domain ? `/domain/${encodeURIComponent(domain)}/objective/${encodeURIComponent(obj.name)}` : "/",
             });
-        }
-        for (const screen of snapshot.model.screens) {
-            const comp = ccMap.get(`screen:${screen.name}`) ?? "";
-            items.push({
-                type: "screen",
-                name: screen.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/screen/${encodeURIComponent(screen.name)}` : "/",
-            });
-        }
-        for (const journey of snapshot.model.journeys) {
-            const comp = ccMap.get(`journey:${journey.name}`) ?? "";
-            items.push({
-                type: "journey",
-                name: journey.name,
-                component: comp,
-                href: comp ? `/component/${encodeURIComponent(comp)}/journey/${encodeURIComponent(journey.name)}` : "/",
-            });
-        }
-        // API endpoints — find owning component via body reference (ccMap keys collide for same-name APIs like "REST")
-        for (const api of snapshot.model.apis) {
-            const comp = snapshot.model.components.find(c => c.body.includes(api))?.name ?? "";
-            const prefix = api.decorators?.find((d) => d.name === "prefix");
-            const prefixVal = prefix ? String(prefix.params[0]?.value ?? "") : "";
-            for (const ep of api.endpoints) {
-                const method = ep.method;
-                const path = ep.path;
-                items.push({
-                    type: "endpoint",
-                    name: `${method} ${path}`,
-                    component: comp,
-                    href: comp ? `/component/${encodeURIComponent(comp)}` : "/",
-                    detail: prefixVal,
-                });
-            }
         }
         // Timeline commits — indexed for search
         try {
@@ -232,7 +185,7 @@ export function apiRoutes(getSnapshot) {
                 items.push({
                     type: "commit",
                     name: `${commit.shortHash} — ${commit.message}`,
-                    component: "",
+                    domain: "",
                     href: `/timeline?highlight=${commit.shortHash}`,
                 });
                 for (const ev of commit.subEvents) {
@@ -240,7 +193,7 @@ export function apiRoutes(getSnapshot) {
                         items.push({
                             type: "impl",
                             name: `${ev.detail ?? '@impl'} on ${ev.constructType}:${ev.constructName}`,
-                            component: "",
+                            domain: "",
                             href: `/timeline?highlight=${commit.shortHash}`,
                             detail: commit.shortHash,
                         });
@@ -266,13 +219,13 @@ export function apiRoutes(getSnapshot) {
 }
 function getConstructCount(snapshot, type) {
     switch (type) {
-        case "component": return snapshot.model.components.length;
-        case "entity": return snapshot.model.entities.length;
-        case "state": return snapshot.model.states.length;
-        case "flow": return snapshot.model.flows.length;
-        case "screen": return snapshot.model.screens.length;
-        case "journey": return snapshot.model.journeys.length;
-        case "deployment": return snapshot.model.nodes.length;
+        case "domain": return snapshot.domains.length;
+        case "concept": return snapshot.model.concepts.length;
+        case "capability": return snapshot.model.capabilities.length;
+        case "lifecycle": return snapshot.model.concepts.filter(c => c.lifecycle).length;
+        case "objective": return snapshot.model.objectives.length;
+        case "invariant": return snapshot.model.invariants.length;
+        case "property": return snapshot.model.properties.length;
     }
 }
 //# sourceMappingURL=api.js.map

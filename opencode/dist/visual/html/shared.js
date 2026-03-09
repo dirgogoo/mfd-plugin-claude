@@ -1,6 +1,8 @@
 /**
  * Shared utilities for HTML rendering.
  * Centralizes escapeHtml, formatType, link helpers, chip rendering, etc.
+ *
+ * Updated for v2: supports /domain/ routes, concept-domain mapping, v2 type colors.
  */
 // ===== Escaping =====
 export function escapeHtml(str) {
@@ -10,6 +12,16 @@ export function escapeHtml(str) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
 }
+// ===== V2 Type Colors =====
+export const V2_TYPE_COLORS = {
+    concept: "#00E5FF", // Cyan
+    capability: "#FF6B6B", // Coral
+    lifecycle: "#FBBF24", // Amber
+    invariant: "#A78BFA", // Violet
+    property: "#34D399", // Emerald
+    objective: "#F472B6", // Pink
+    enum: "#60A5FA", // Blue
+};
 // ===== Type Formatting =====
 export function formatType(typeExpr) {
     if (!typeExpr)
@@ -33,28 +45,29 @@ export function formatType(typeExpr) {
 }
 /**
  * Format a type expression as HTML with links for ReferenceTypes.
- * Links point to the entity detail page in the component that owns it.
+ * Links point to the construct detail page in the domain that owns it.
+ * For v2, uses "concept" kind instead of "entity" for non-enum references.
  */
-export function formatTypeLinked(typeExpr, entityComponentMap, enumNames) {
+export function formatTypeLinked(typeExpr, conceptDomainMap, enumNames) {
     if (!typeExpr)
         return "unknown";
     switch (typeExpr.type) {
         case "PrimitiveType":
             return escapeHtml(typeExpr.name);
         case "ReferenceType": {
-            const comp = entityComponentMap.get(typeExpr.name);
-            if (comp) {
-                const kind = enumNames?.has(typeExpr.name) ? "enum" : "entity";
-                return `<a href="${constructLink(comp, kind, typeExpr.name)}" class="scope-construct-link">${escapeHtml(typeExpr.name)}</a>`;
+            const domain = conceptDomainMap.get(typeExpr.name);
+            if (domain) {
+                const kind = enumNames?.has(typeExpr.name) ? "enum" : "concept";
+                return `<a href="${constructLink(domain, kind, typeExpr.name)}" class="scope-construct-link">${escapeHtml(typeExpr.name)}</a>`;
             }
             return escapeHtml(typeExpr.name);
         }
         case "OptionalType":
-            return formatTypeLinked(typeExpr.inner, entityComponentMap, enumNames) + "?";
+            return formatTypeLinked(typeExpr.inner, conceptDomainMap, enumNames) + "?";
         case "ArrayType":
-            return formatTypeLinked(typeExpr.inner, entityComponentMap, enumNames) + "[]";
+            return formatTypeLinked(typeExpr.inner, conceptDomainMap, enumNames) + "[]";
         case "UnionType":
-            return typeExpr.alternatives.map((a) => formatTypeLinked(a, entityComponentMap, enumNames)).join(" | ");
+            return typeExpr.alternatives.map((a) => formatTypeLinked(a, conceptDomainMap, enumNames)).join(" | ");
         case "InlineObjectType":
             return "{...}";
         default:
@@ -62,11 +75,24 @@ export function formatTypeLinked(typeExpr, entityComponentMap, enumNames) {
     }
 }
 // ===== Link Helpers =====
-export function constructLink(componentName, type, name) {
-    return `/component/${encodeURIComponent(componentName)}/${encodeURIComponent(type)}/${encodeURIComponent(name)}`;
+/**
+ * Build a link to a construct detail page within a domain.
+ * Uses /domain/ routes for v2.
+ */
+export function constructLink(domainName, type, name) {
+    return `/domain/${encodeURIComponent(domainName)}/${encodeURIComponent(type)}/${encodeURIComponent(name)}`;
 }
+/**
+ * Build a link to a domain detail page.
+ */
+export function domainLink(name) {
+    return `/domain/${encodeURIComponent(name)}`;
+}
+/**
+ * Legacy alias for domainLink. Points to /domain/ for backwards compat.
+ */
 export function componentLink(name) {
-    return `/component/${encodeURIComponent(name)}`;
+    return `/domain/${encodeURIComponent(name)}`;
 }
 // ===== Chip Rendering =====
 export function renderImplChip(decorators) {
@@ -98,14 +124,14 @@ export function renderVerifiedChip(decorators) {
     if (!verifiedDec)
         return "";
     const count = verifiedDec.params[0] ? String(verifiedDec.params[0].value) : "1";
-    return `<span class="scope-chip verified" title="Verified ${count} time(s) by council">✓ verified(${escapeHtml(count)})</span>`;
+    return `<span class="scope-chip verified" title="Verified ${count} time(s) by council">verified(${escapeHtml(count)})</span>`;
 }
 export function renderNodeChip(decorators) {
     const nodeDec = decorators?.find((d) => d.name === "node");
     if (!nodeDec || !nodeDec.params[0])
         return "";
     const nodeName = String(nodeDec.params[0].value);
-    return `<span class="scope-chip" style="background:var(--c-info,#3b82f6);color:#fff" title="Runs on node: ${escapeHtml(nodeName)}">⬡ ${escapeHtml(nodeName)}</span>`;
+    return `<span class="scope-chip" style="background:var(--c-info,#3b82f6);color:#fff" title="Runs on node: ${escapeHtml(nodeName)}">${escapeHtml(nodeName)}</span>`;
 }
 export function renderDecoratorChips(decorators) {
     if (!decorators?.length)
@@ -119,9 +145,25 @@ export function renderDecoratorChips(decorators) {
     })
         .join(" ");
 }
-// ===== Entity-Component Map =====
+// ===== Concept-Domain Map (v2) =====
 /**
- * Build a map from entity/enum name → component name.
+ * Build a map from concept/enum name to domain name.
+ * Used for type reference linking in v2.
+ */
+export function buildConceptDomainMap(constructDomainMap) {
+    const map = new Map();
+    for (const [key, domain] of constructDomainMap) {
+        const [type, ...rest] = key.split(":");
+        const name = rest.join(":");
+        if (type === "concept" || type === "enum") {
+            map.set(name, domain);
+        }
+    }
+    return map;
+}
+// ===== Entity-Component Map (legacy v1) =====
+/**
+ * Build a map from entity/enum name to component name.
  * Uses the central constructComponentMap from the snapshot for correct mapping
  * (handles both nested and top-level constructs).
  */
@@ -150,18 +192,18 @@ export function buildEntityComponentMap(model, constructComponentMap) {
     return map;
 }
 /**
- * Get the component that owns a construct, using the central map.
+ * Get the domain/component that owns a construct, using the central map.
  */
-export function getConstructComponent(constructComponentMap, type, name) {
-    return constructComponentMap.get(`${type}:${name}`) ?? null;
+export function getConstructComponent(constructDomainMap, type, name) {
+    return constructDomainMap.get(`${type}:${name}`) ?? null;
 }
 /**
- * Get all constructs of a given type assigned to a component.
+ * Get all constructs of a given type assigned to a domain/component.
  */
-export function getComponentConstructs(constructComponentMap, componentName, type) {
+export function getComponentConstructs(constructDomainMap, domainName, type) {
     const results = [];
-    for (const [key, comp] of constructComponentMap) {
-        if (comp !== componentName)
+    for (const [key, domain] of constructDomainMap) {
+        if (domain !== domainName)
             continue;
         const [t, ...rest] = key.split(":");
         const name = rest.join(":");

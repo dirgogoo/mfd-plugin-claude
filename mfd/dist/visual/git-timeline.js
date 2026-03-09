@@ -23,9 +23,8 @@ export async function getOrLoadTimeline(filePath, limit = 100) {
 }
 // ===== Construct patterns =====
 const CONSTRUCT_KEYWORDS = [
-    'entity', 'flow', 'screen', 'state', 'event', 'signal', 'enum',
-    'rule', 'api', 'journey', 'operation', 'action', 'element',
-    'component', 'dep', 'secret',
+    'concept', 'capability', 'invariant', 'property', 'objective', 'enum',
+    'system',
 ];
 const CONSTRUCT_RE = new RegExp(`^\\s*(${CONSTRUCT_KEYWORDS.join('|')})\\s+(\\w+)`);
 const IMPL_RE = /@impl\(([^)]+)\)/;

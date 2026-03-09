@@ -2,13 +2,13 @@
  * Full-page diagram view with floating controls
  */
 const LABELS = {
-    component: "Component Map",
-    entity: "Entity Diagram",
-    state: "State Machine",
-    flow: "Flow Diagram",
-    screen: "Screen Map",
-    journey: "User Journey",
-    deployment: "Deployment Topology",
+    domain: "Domain Map",
+    concept: "Concept Diagram",
+    lifecycle: "Lifecycle Machine",
+    capability: "Capability Contract",
+    objective: "Objective Graph",
+    invariant: "Invariant Overview",
+    property: "Property Timeline",
 };
 export function renderDiagramPage(snapshot, type) {
     const mermaidCode = snapshot.diagrams[type];
@@ -35,13 +35,13 @@ export function renderDiagramPage(snapshot, type) {
 }
 function getCount(snapshot, type) {
     switch (type) {
-        case "component": return snapshot.model.components.length;
-        case "entity": return snapshot.model.entities.length;
-        case "state": return snapshot.model.states.length;
-        case "flow": return snapshot.model.flows.length;
-        case "screen": return snapshot.model.screens.length;
-        case "journey": return snapshot.model.journeys.length;
-        case "deployment": return snapshot.model.nodes.length;
+        case "domain": return snapshot.domains.length;
+        case "concept": return snapshot.model.concepts.length;
+        case "lifecycle": return snapshot.model.concepts.filter(c => c.lifecycle).length;
+        case "capability": return snapshot.model.capabilities.length;
+        case "objective": return snapshot.model.objectives.length;
+        case "invariant": return snapshot.model.invariants.length;
+        case "property": return snapshot.model.properties.length;
     }
 }
 function escapeHtml(str) {

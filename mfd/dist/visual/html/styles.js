@@ -62,6 +62,13 @@ export function getStyles() {
   --scope-type-element: #C084FC;
   --scope-type-action: #FCD34D;
 
+  /* V2 construct type colors */
+  --scope-type-concept: #00E5FF;
+  --scope-type-capability: #FF6B6B;
+  --scope-type-invariant: #A78BFA;
+  --scope-type-property: #34D399;
+  --scope-type-objective: #F472B6;
+
   /* Typography — system monospace */
   --scope-font-display: monospace;
   --scope-font-mono: monospace;
@@ -2706,6 +2713,58 @@ button:focus-visible,
 .scope-node-field__name { color: var(--scope-text-primary); }
 .scope-node-field__type { font-family: var(--scope-font-mono); color: var(--scope-text-secondary); }
 
+/* Subtitle (invariant scope, property clause types) */
+.scope-node-subtitle {
+  font-size: var(--scope-text-xs);
+  color: var(--scope-text-tertiary);
+  padding: 2px 0;
+  font-style: italic;
+}
+
+/* Capability signature */
+.scope-node-signature {
+  font-family: var(--scope-font-mono);
+  font-size: 9px;
+  color: var(--scope-text-secondary);
+  padding: 3px 0 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Capability clause lines */
+.scope-node-clauses {
+  padding-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.scope-node-clause {
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+  font-size: 9px;
+  padding: 1px 0;
+}
+.scope-node-clause__tag {
+  font-family: var(--scope-font-mono);
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 38px;
+}
+.scope-node-clause__text {
+  font-family: var(--scope-font-mono);
+  color: var(--scope-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scope-node-clause--given .scope-node-clause__tag { color: #60A5FA; }
+.scope-node-clause--then .scope-node-clause__tag { color: #34D399; }
+.scope-node-clause--affects .scope-node-clause__tag { color: #FBBF24; }
+.scope-node-clause--reject .scope-node-clause__tag { color: #FF5252; }
+.scope-node-clause--emits .scope-node-clause__tag { color: #A78BFA; }
+.scope-node-clause--via .scope-node-clause__tag { color: #FB923C; }
+
 /* Ghost origin label */
 .scope-node-ghost-origin {
   font-size: var(--scope-text-xs);
@@ -2892,8 +2951,9 @@ path.scope-graph-edge-override {
   stroke-width: 2;
 }
 
-/* ===== COMPONENT GRAPH (interactive overview) ===== */
-.scope-component-graph {
+/* ===== DOMAIN / COMPONENT GRAPH (interactive overview) ===== */
+.scope-component-graph,
+.scope-domain-graph {
   position: relative;
   width: 100%;
   height: 100%;
@@ -2902,14 +2962,16 @@ path.scope-graph-edge-override {
   background: var(--scope-void);
 }
 
-.scope-component-graph-world {
+.scope-component-graph-world,
+.scope-domain-graph-world {
   position: absolute;
   top: 0;
   left: 0;
   transform-origin: 0 0;
 }
 
-.scope-component-graph-edges {
+.scope-component-graph-edges,
+.scope-domain-graph-edges {
   position: absolute;
   top: 0;
   left: 0;
@@ -2919,47 +2981,57 @@ path.scope-graph-edge-override {
   overflow: visible;
 }
 
-/* Component node — extends .scope-graph-node */
-.scope-component-node {
+/* Component / Domain node — extends .scope-graph-node */
+.scope-component-node,
+.scope-domain-node {
   padding: var(--scope-space-4) var(--scope-space-6);
   min-width: 200px;
   text-align: center;
 }
 
-.scope-component-node:hover {
+.scope-component-node:hover,
+.scope-domain-node:hover {
   border-color: #FFFFFF !important;
 }
-.scope-component-node:hover a { color: #000000 !important; }
-.scope-component-node.dragging:hover {
+.scope-component-node:hover a,
+.scope-domain-node:hover a { color: #000000 !important; }
+.scope-component-node.dragging:hover,
+.scope-domain-node.dragging:hover {
   border-color: var(--node-color, var(--scope-border)) !important;
 }
-.scope-component-node.dragging:hover a { color: var(--scope-text-primary) !important; }
+.scope-component-node.dragging:hover a,
+.scope-domain-node.dragging:hover a { color: var(--scope-text-primary) !important; }
 
-.scope-component-node__name {
+.scope-component-node__name,
+.scope-domain-node__name {
   font-size: var(--scope-text-md);
   font-weight: normal;
   margin-bottom: 2px;
 }
 
-.scope-component-node__name a {
+.scope-component-node__name a,
+.scope-domain-node__name a {
   color: var(--node-color, var(--scope-text-primary));
   text-decoration: none;
 }
 
-.scope-component-node__status {
+.scope-component-node__status,
+.scope-domain-node__status {
   font-style: italic;
   font-size: var(--scope-text-base);
   color: var(--scope-text-primary);
   margin-bottom: 2px;
 }
 
-.scope-component-node__counts {
+.scope-component-node__counts,
+.scope-domain-node__counts {
   font-size: var(--scope-text-sm);
   color: var(--scope-text-primary);
   margin-bottom: 2px;
 }
 
-.scope-component-node__impl {
+.scope-component-node__impl,
+.scope-domain-node__impl {
   font-size: var(--scope-text-sm);
   color: var(--scope-text-primary);
   font-family: var(--scope-font-mono);
@@ -3002,28 +3074,33 @@ path.scope-graph-edge-override {
   opacity: 0.8;
 }
 
-.scope-component-graph-edge {
+.scope-component-graph-edge,
+.scope-domain-graph-edge {
   stroke: var(--scope-text-primary);
   stroke-width: 1.5;
   fill: none;
 }
 
-.scope-component-graph-edge.optional {
+.scope-component-graph-edge.optional,
+.scope-domain-graph-edge.optional {
   stroke-dasharray: 6, 3;
   stroke: var(--scope-text-tertiary);
 }
 
-.scope-component-graph-edge.scope-graph-edge-extends {
+.scope-component-graph-edge.scope-graph-edge-extends,
+.scope-domain-graph-edge.scope-graph-edge-extends {
   stroke: var(--scope-wip);
   stroke-width: 1.5;
   stroke-dasharray: 8, 4;
 }
-.scope-component-graph-edge.scope-graph-edge-implements {
+.scope-component-graph-edge.scope-graph-edge-implements,
+.scope-domain-graph-edge.scope-graph-edge-implements {
   stroke: var(--scope-diagram-flow);
   stroke-width: 1.5;
   stroke-dasharray: 4, 3;
 }
-.scope-component-graph-edge-label {
+.scope-component-graph-edge-label,
+.scope-domain-graph-edge-label {
   fill: var(--scope-text-secondary);
   font-size: 10px;
   font-family: var(--scope-font-mono);
@@ -4543,12 +4620,29 @@ path.scope-graph-edge-override {
 .scope-overview-node--action { border-color: var(--scope-type-action); }
 .scope-overview-node--action .scope-node-type { color: var(--scope-type-action); }
 
-/* Overview edges — monochrome, low opacity */
+/* V2 construct types */
+.scope-overview-node--concept { border-color: var(--scope-type-concept); }
+.scope-overview-node--concept .scope-node-type { color: var(--scope-type-concept); }
+
+.scope-overview-node--capability { border-color: var(--scope-type-capability); }
+.scope-overview-node--capability .scope-node-type { color: var(--scope-type-capability); }
+
+.scope-overview-node--invariant { border-color: var(--scope-type-invariant); }
+.scope-overview-node--invariant .scope-node-type { color: var(--scope-type-invariant); }
+
+.scope-overview-node--property { border-color: var(--scope-type-property); }
+.scope-overview-node--property .scope-node-type { color: var(--scope-type-property); }
+
+.scope-overview-node--objective { border-color: var(--scope-type-objective); }
+.scope-overview-node--objective .scope-node-type { color: var(--scope-type-objective); }
+
+/* Overview edges */
 .scope-overview-graph-edge {
   fill: none;
   stroke: var(--scope-text-tertiary);
-  stroke-width: 1;
-  opacity: 0.4;
+  stroke-width: 1.5;
+  opacity: 0.45;
+  transition: opacity 0.15s, stroke-width 0.15s;
 }
 
 .scope-overview-graph-edge.governance {
@@ -4576,16 +4670,17 @@ path.scope-graph-edge-override {
 }
 
 .scope-overview-graph-edge-group:hover .scope-overview-graph-edge {
-  stroke-width: 2;
-  opacity: 0.8;
+  stroke-width: 2.5;
+  opacity: 0.9;
 }
 
 .scope-overview-graph-edge-label {
   font-size: 9px;
   font-family: var(--scope-font-mono);
   fill: var(--scope-text-tertiary);
-  opacity: 0.5;
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 0.15s;
 }
 
 .scope-overview-graph-edge-group:hover .scope-overview-graph-edge-label {

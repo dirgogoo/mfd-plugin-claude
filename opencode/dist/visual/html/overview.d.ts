@@ -1,7 +1,8 @@
 /**
  * Overview page (Level 1 — System):
- * Diagram-first layout. Component diagram has enriched node labels
- * with status, construct counts, and impl progress built into each node.
+ * Domain graph visualization for v2 models.
+ * Each node is a domain (file) with construct counts and impl progress.
+ * Edges show cross-domain references.
  *
  * Also exports renderSystemInfo() for the system info tab.
  */

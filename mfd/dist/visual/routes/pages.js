@@ -1,24 +1,25 @@
 /**
  * HTML page routes — server-side rendered pages
- * Routes: / (System Info), /components (Component Graph), /dashboard,
- *         /component/:name, /component/:name/:type/:item
+ * Routes: / (System Info), /domains (Domain Overview), /dashboard,
+ *         /domain/:name, /domain/:name/:type/:item
  */
 import { Hono } from "hono";
 import { renderLayout } from "../html/layout.js";
 import { renderOverview, renderSystemInfo } from "../html/overview.js";
 import { renderDashboard } from "../html/dashboard.js";
 import { renderTimeline } from "../html/timeline.js";
-import { renderComponentDetail } from "../html/component-detail.js";
+import { renderDomainDetail } from "../html/domain-detail.js";
 import { renderConstructDetail } from "../html/construct-detail.js";
+import { renderDiagramPage } from "../html/diagram.js";
 const CONSTRUCT_TYPES = [
-    "entity", "enum", "flow", "api", "state", "event", "signal", "rule", "screen", "journey", "operation", "element", "action",
+    "concept", "enum", "capability", "invariant", "property", "objective",
 ];
 function layoutOpts(snapshot, overrides) {
     return {
         systemName: snapshot.systemName,
         systemVersion: snapshot.systemVersion,
         activePage: "system",
-        components: snapshot.components,
+        domains: snapshot.domains,
         ...overrides,
     };
 }
@@ -40,20 +41,20 @@ export function pageRoutes(getSnapshot) {
             title: "System Info",
         })));
     });
-    // Level 1: Components (component graph — was previously "/")
-    app.get("/components", (c) => {
+    // Level 1: Domains (domain graph — was previously "/components")
+    app.get("/domains", (c) => {
         const snapshot = getSnapshot();
         if (!snapshot) {
             return c.html(renderLayout("<p>Loading model...</p>", {
                 systemName: "MFD Scope",
                 systemVersion: null,
-                activePage: "components",
+                activePage: "domains",
             }));
         }
         const content = renderOverview(snapshot);
         return c.html(renderLayout(content, layoutOpts(snapshot, {
-            activePage: "components",
-            title: "Components",
+            activePage: "domains",
+            title: "Domains",
         })));
     });
     // Dashboard
@@ -96,8 +97,8 @@ export function pageRoutes(getSnapshot) {
             title: "Timeline",
         })));
     });
-    // Level 2: Component detail
-    app.get("/component/:name", (c) => {
+    // Level 2: Domain detail
+    app.get("/domain/:name", (c) => {
         const snapshot = getSnapshot();
         if (!snapshot) {
             return c.html(renderLayout("<p>Loading model...</p>", {
@@ -107,12 +108,12 @@ export function pageRoutes(getSnapshot) {
             }));
         }
         const name = decodeURIComponent(c.req.param("name"));
-        const result = renderComponentDetail(snapshot, name);
+        const result = renderDomainDetail(snapshot, name);
         const requestedTab = c.req.query("tab") || result.defaultTab;
         return c.html(renderLayout(result.html, layoutOpts(snapshot, {
-            activePage: "component",
-            activeComponent: name,
-            componentTabs: result.tabs,
+            activePage: "domain",
+            activeDomain: name,
+            domainTabs: result.tabs,
             activeTab: requestedTab,
             breadcrumbs: [
                 { label: "System", href: "/" },
@@ -122,7 +123,7 @@ export function pageRoutes(getSnapshot) {
         })));
     });
     // Level 3: Construct detail
-    app.get("/component/:name/:type/:item", (c) => {
+    app.get("/domain/:name/:type/:item", (c) => {
         const snapshot = getSnapshot();
         if (!snapshot) {
             return c.html(renderLayout("<p>Loading model...</p>", {
@@ -131,42 +132,57 @@ export function pageRoutes(getSnapshot) {
                 activePage: "system",
             }));
         }
-        const compName = decodeURIComponent(c.req.param("name"));
+        const domainName = decodeURIComponent(c.req.param("name"));
         const type = decodeURIComponent(c.req.param("type"));
         const itemName = decodeURIComponent(c.req.param("item"));
         if (!CONSTRUCT_TYPES.includes(type)) {
             return c.html(renderLayout(`<p>Unknown construct type: ${type}</p>`, layoutOpts(snapshot, {
-                activePage: "component",
-                activeComponent: compName,
+                activePage: "domain",
+                activeDomain: domainName,
             })), 404);
         }
         const typeLabels = {
-            entity: "Entity",
+            concept: "Concept",
             enum: "Enum",
-            flow: "Flow",
-            api: "API",
-            state: "State",
-            event: "Event",
-            rule: "Rule",
-            screen: "Screen",
-            journey: "Journey",
-            operation: "Operation",
-            element: "Element",
-            action: "Action",
-            signal: "Signal",
-            node: "Node",
+            capability: "Capability",
+            invariant: "Invariant",
+            property: "Property",
+            objective: "Objective",
         };
-        const content = renderConstructDetail(snapshot, compName, type, itemName);
+        const content = renderConstructDetail(snapshot, domainName, type, itemName);
         return c.html(renderLayout(content, layoutOpts(snapshot, {
-            activePage: "component",
-            activeComponent: compName,
-            constructContext: { type: typeLabels[type], name: itemName, component: compName },
+            activePage: "domain",
+            activeDomain: domainName,
+            constructContext: { type: typeLabels[type], name: itemName, domain: domainName },
             breadcrumbs: [
                 { label: "System", href: "/" },
-                { label: compName, href: `/component/${encodeURIComponent(compName)}` },
+                { label: domainName, href: `/domain/${encodeURIComponent(domainName)}` },
                 { label: `${typeLabels[type]}: ${itemName}` },
             ],
             title: `${typeLabels[type]}: ${itemName}`,
+        })));
+    });
+    // Full-page diagram view
+    const DIAGRAM_TYPES = [
+        "domain", "concept", "lifecycle", "capability", "objective", "invariant", "property",
+    ];
+    app.get("/diagram/:type", (c) => {
+        const snapshot = getSnapshot();
+        if (!snapshot) {
+            return c.html(renderLayout("<p>Loading model...</p>", {
+                systemName: "MFD Scope",
+                systemVersion: null,
+                activePage: "system",
+            }));
+        }
+        const type = c.req.param("type");
+        if (!DIAGRAM_TYPES.includes(type)) {
+            return c.html(renderLayout(`<p>Unknown diagram type: ${type}</p>`, layoutOpts(snapshot, {})), 404);
+        }
+        const content = renderDiagramPage(snapshot, type);
+        return c.html(renderLayout(content, layoutOpts(snapshot, {
+            activePage: "domains",
+            title: `${type.charAt(0).toUpperCase() + type.slice(1)} Diagram`,
         })));
     });
     return app;

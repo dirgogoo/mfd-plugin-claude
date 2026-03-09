@@ -542,7 +542,7 @@ class BaseGraph {
   createGhostOrigin(data) {
     const label = document.createElement('div');
     label.className = 'scope-node-ghost-origin';
-    label.textContent = data.ghostComponent || data.component || 'external';
+    label.textContent = data.ghostDomain || data.domain || 'external';
     return label;
   }
 
@@ -622,7 +622,7 @@ class BaseGraph {
       ['scope-journey-trigger-node', 'event'],
       ['scope-journey-action-node', 'action'],
       ['scope-journey-special-node', 'special'],
-      ['scope-component-node', 'component'],
+      ['scope-domain-node', 'domain'],
       ['scope-overview-node', 'construct'],
       ['scope-graph-node', 'construct'],
     ]);
@@ -632,7 +632,7 @@ class BaseGraph {
     }
 
     for (const cls of classList) {
-      const m1 = cls.match(/^scope-(?:event|flow|screen|api|state|journey|overview|component)-(.+)-node$/);
+      const m1 = cls.match(/^scope-(?:event|flow|screen|api|state|journey|overview|domain|concept|capability)-(.+)-node$/);
       if (m1 && m1[1] && m1[1] !== 'context') {
         return normalizeNodeType(m1[1]);
       }
@@ -3872,6 +3872,52 @@ class OverviewGraph extends BaseGraph {
       this.createAbstractBadge(typeLabel, node);
       div.appendChild(typeLabel);
 
+      // Render fields inside concept nodes (class-diagram style)
+      if (node.fields && node.fields.length > 0) {
+        div.appendChild(this.createFields(node.fields));
+      }
+
+      // Render enum values inside enum nodes
+      if (node.values && node.values.length > 0) {
+        div.appendChild(this.createEnumValues(node.values));
+      }
+
+      // Render subtitle (invariant scope, property clause types)
+      if (node.subtitle) {
+        const sub = document.createElement('div');
+        sub.className = 'scope-node-subtitle';
+        sub.textContent = node.subtitle;
+        div.appendChild(sub);
+      }
+
+      // Render capability signature
+      if (node.signature) {
+        const sig = document.createElement('div');
+        sig.className = 'scope-node-signature';
+        sig.textContent = node.signature;
+        div.appendChild(sig);
+      }
+
+      // Render capability clause lines
+      if (node.clauseLines && node.clauseLines.length > 0) {
+        const container = document.createElement('div');
+        container.className = 'scope-node-clauses';
+        for (const cl of node.clauseLines) {
+          const row = document.createElement('div');
+          row.className = 'scope-node-clause scope-node-clause--' + cl.type;
+          const tag = document.createElement('span');
+          tag.className = 'scope-node-clause__tag';
+          tag.textContent = cl.type;
+          const text = document.createElement('span');
+          text.className = 'scope-node-clause__text';
+          text.textContent = cl.text;
+          row.appendChild(tag);
+          row.appendChild(text);
+          container.appendChild(row);
+        }
+        div.appendChild(container);
+      }
+
       const inh = this.createInheritanceLine(node);
       if (inh) div.appendChild(inh);
 
@@ -3884,73 +3930,21 @@ class OverviewGraph extends BaseGraph {
   layout() {
     const nodes = this.data.nodes;
     if (nodes.length === 0) return;
+    const edges = this.data.edges || [];
 
-    // Sub-group ordering within each category
-    const behaviorOrder = ['screen', 'flow', 'state', 'api'];
-    const dataOrder = ['entity', 'event', 'signal'];
+    // Check if nodes have rich content (fields/values/clauses)
+    const hasRichNodes = nodes.some(n =>
+      (n.fields && n.fields.length > 0) ||
+      (n.values && n.values.length > 0) ||
+      (n.clauseLines && n.clauseLines.length > 0)
+    );
 
-    // Group nodes by category
-    const behaviorNodes = nodes.filter(n => n.category === 'behavior');
-    const dataNodes = nodes.filter(n => n.category === 'data');
-
-    // Sub-group by type within each category
-    function groupByType(items, order) {
-      const groups = new Map();
-      for (const type of order) {
-        const matching = items.filter(n => n.constructType === type);
-        if (matching.length > 0) groups.set(type, matching);
-      }
-      // Catch any types not in the order list
-      for (const n of items) {
-        if (!order.includes(n.constructType)) {
-          if (!groups.has(n.constructType)) groups.set(n.constructType, []);
-          groups.get(n.constructType).push(n);
-        }
-      }
-      return groups;
+    // Use layered layout: assign layers by construct type, then position within layers
+    if (edges.length > 0) {
+      this._layeredLayout(nodes, edges, hasRichNodes);
+    } else {
+      this._gridLayout(nodes, hasRichNodes);
     }
-
-    const behaviorGroups = groupByType(behaviorNodes, behaviorOrder);
-    const dataGroups = groupByType(dataNodes, dataOrder);
-
-    // Layout parameters
-    const nodeGap = 20;
-    const rowGap = 60;
-    const columnGap = 400;
-    const startX = 40;
-    const startY = 40;
-
-    // Layout a column of type-groups, returns the max X used
-    const layoutColumn = (groups, offsetX) => {
-      let y = startY;
-      let maxColWidth = 0;
-
-      for (const [, typeNodes] of groups) {
-        let x = offsetX;
-        let maxRowHeight = 0;
-
-        for (const node of typeNodes) {
-          this.nodePositions.set(node.id, { x, y });
-          const el = this.nodeElements.get(node.id);
-          const w = el ? el.offsetWidth : 160;
-          const h = el ? el.offsetHeight : 50;
-          if (h > maxRowHeight) maxRowHeight = h;
-          if ((x - offsetX) + w > maxColWidth) maxColWidth = (x - offsetX) + w;
-          x += w + nodeGap;
-        }
-
-        y += maxRowHeight + rowGap;
-      }
-
-      return maxColWidth;
-    };
-
-    // Layout behavior column (left)
-    const behaviorWidth = layoutColumn(behaviorGroups, startX);
-
-    // Layout data column (right)
-    const dataStartX = startX + behaviorWidth + columnGap;
-    layoutColumn(dataGroups, dataStartX);
 
     // Apply positions
     for (const node of nodes) {
@@ -3961,24 +3955,201 @@ class OverviewGraph extends BaseGraph {
         el.style.top = pos.y + 'px';
       }
     }
+  }
 
-    // Add category labels
-    if (behaviorNodes.length > 0) {
-      const label = document.createElement('div');
-      label.className = 'scope-overview-category-label';
-      label.textContent = 'BEHAVIOR';
-      label.style.left = startX + 'px';
-      label.style.top = (startY - 20) + 'px';
-      this.worldEl.appendChild(label);
+  /**
+   * Layered layout with wrapping and barycenter crossing reduction.
+   * Assigns layers by construct type, wraps long rows, then reorders
+   * nodes within each layer to minimize edge crossings.
+   */
+  _layeredLayout(nodes, edges, hasRichNodes) {
+    if (nodes.length === 0) return;
+
+    // Get node sizes
+    const sizes = new Map();
+    for (const node of nodes) {
+      const el = this.nodeElements.get(node.id);
+      sizes.set(node.id, {
+        w: el ? el.offsetWidth : 160,
+        h: el ? el.offsetHeight : 50,
+      });
     }
 
-    if (dataNodes.length > 0) {
-      const label = document.createElement('div');
-      label.className = 'scope-overview-category-label';
-      label.textContent = 'DATA';
-      label.style.left = dataStartX + 'px';
-      label.style.top = (startY - 20) + 'px';
-      this.worldEl.appendChild(label);
+    // Build adjacency
+    const adj = new Map();
+    for (const node of nodes) adj.set(node.id, []);
+    for (const edge of edges) {
+      if (adj.has(edge.from)) adj.get(edge.from).push(edge.to);
+      if (adj.has(edge.to)) adj.get(edge.to).push(edge.from);
+    }
+
+    // Layer order (top → bottom)
+    const layerOrder = ['objective', 'invariant', 'property', 'capability', 'concept', 'enum', 'event'];
+
+    // Group nodes into layers
+    const layerMap = new Map();
+    for (const node of nodes) {
+      let idx = layerOrder.indexOf(node.constructType);
+      if (idx === -1) idx = layerOrder.length;
+      if (!layerMap.has(idx)) layerMap.set(idx, []);
+      layerMap.get(idx).push(node);
+    }
+    const sortedKeys = [...layerMap.keys()].sort((a, b) => a - b);
+
+    // --- Phase 1: Barycenter ordering (12 passes) ---
+    const xPos = new Map();
+    for (const key of sortedKeys) {
+      const layerNodes = layerMap.get(key);
+      layerNodes.forEach((n, i) => xPos.set(n.id, i));
+    }
+
+    for (let pass = 0; pass < 12; pass++) {
+      const keys = pass % 2 === 0 ? sortedKeys : [...sortedKeys].reverse();
+      for (const key of keys) {
+        const layerNodes = layerMap.get(key);
+        if (layerNodes.length <= 1) continue;
+        for (const node of layerNodes) {
+          const neighbors = (adj.get(node.id) || []).filter(nid => xPos.has(nid));
+          if (neighbors.length > 0) {
+            const avg = neighbors.reduce((sum, nid) => sum + xPos.get(nid), 0) / neighbors.length;
+            xPos.set(node.id, avg);
+          }
+        }
+        layerNodes.sort((a, b) => xPos.get(a.id) - xPos.get(b.id));
+        layerNodes.forEach((n, i) => xPos.set(n.id, i));
+      }
+    }
+
+    // --- Phase 2: Physical placement with wrapping + centering ---
+    const pad = 40;
+    const gapX = hasRichNodes ? 35 : 20;
+    const layerGap = hasRichNodes ? 30 : 35;
+    const containerW = this.container.offsetWidth || 1400;
+    const maxRowW = Math.max(containerW - pad * 2, 800);
+    let y = pad;
+
+    // Track rows per layer for post-processing
+    const allRows = [];
+
+    for (const key of sortedKeys) {
+      const layerNodes = layerMap.get(key);
+
+      // Split into rows respecting maxRowW
+      const rows = [[]];
+      let rowW = 0;
+      for (const node of layerNodes) {
+        const s = sizes.get(node.id);
+        if (rows[rows.length - 1].length > 0 && rowW + gapX + s.w > maxRowW) {
+          rows.push([]);
+          rowW = 0;
+        }
+        rows[rows.length - 1].push(node);
+        rowW += (rowW > 0 ? gapX : 0) + s.w;
+      }
+
+      for (const row of rows) {
+        let totalW = 0;
+        let rowMaxH = 0;
+        for (const node of row) {
+          const s = sizes.get(node.id);
+          totalW += s.w;
+          if (s.h > rowMaxH) rowMaxH = s.h;
+        }
+        totalW += (row.length - 1) * gapX;
+
+        let x = Math.max(pad, (containerW - totalW) / 2);
+        for (const node of row) {
+          const s = sizes.get(node.id);
+          this.nodePositions.set(node.id, { x, y });
+          x += s.w + gapX;
+        }
+
+        allRows.push(row);
+        y += rowMaxH + layerGap * 0.4;
+      }
+
+      y += layerGap * 0.6;
+    }
+
+    // --- Phase 3: Alignment refinement ---
+    // Nudge nodes toward centroid of their connected neighbors
+    // This reduces edge crossings by aligning vertically-connected nodes
+    for (let pass = 0; pass < 4; pass++) {
+      for (const row of allRows) {
+        if (row.length <= 1) continue;
+
+        // Sort row by current X
+        row.sort((a, b) => this.nodePositions.get(a.id).x - this.nodePositions.get(b.id).x);
+
+        // Compute desired X for each node (centroid of neighbors' centers)
+        const desired = new Map();
+        for (const node of row) {
+          const neighbors = (adj.get(node.id) || []).filter(nid => this.nodePositions.has(nid));
+          if (neighbors.length > 0) {
+            const avgCx = neighbors.reduce((sum, nid) => {
+              const p = this.nodePositions.get(nid);
+              return sum + p.x + sizes.get(nid).w / 2;
+            }, 0) / neighbors.length;
+            desired.set(node.id, avgCx - sizes.get(node.id).w / 2);
+          }
+        }
+
+        if (desired.size === 0) continue;
+
+        // Apply nudging with constraints (maintain order, no overlap)
+        for (let i = 0; i < row.length; i++) {
+          const node = row[i];
+          const pos = this.nodePositions.get(node.id);
+          const d = desired.get(node.id);
+          if (d === undefined) continue;
+
+          // Blend: 60% toward desired, 40% keep current
+          let newX = pos.x * 0.4 + d * 0.6;
+
+          // Ensure no overlap with previous node
+          if (i > 0) {
+            const prev = row[i - 1];
+            const prevPos = this.nodePositions.get(prev.id);
+            const minX = prevPos.x + sizes.get(prev.id).w + gapX;
+            newX = Math.max(newX, minX);
+          }
+          // Ensure no overlap with next node
+          if (i < row.length - 1) {
+            const next = row[i + 1];
+            const nextPos = this.nodePositions.get(next.id);
+            const maxX = nextPos.x - sizes.get(node.id).w - gapX;
+            newX = Math.min(newX, maxX);
+          }
+          newX = Math.max(pad, newX);
+
+          this.nodePositions.set(node.id, { x: newX, y: pos.y });
+        }
+      }
+    }
+  }
+
+  /** Simple grid layout fallback (no edges) */
+  _gridLayout(nodes, hasRichNodes) {
+    const nodeGap = hasRichNodes ? 30 : 20;
+    const rowGap = hasRichNodes ? 40 : 60;
+    const startX = 40, startY = 40;
+    const maxRowWidth = 1200;
+
+    let x = startX, y = startY, maxRowHeight = 0;
+    for (const node of nodes) {
+      const el = this.nodeElements.get(node.id);
+      const w = el ? el.offsetWidth : 160;
+      const h = el ? el.offsetHeight : 50;
+
+      if (x > startX && (x - startX) + w > maxRowWidth) {
+        y += maxRowHeight + rowGap;
+        x = startX;
+        maxRowHeight = 0;
+      }
+
+      this.nodePositions.set(node.id, { x, y });
+      if (h > maxRowHeight) maxRowHeight = h;
+      x += w + nodeGap;
     }
   }
 
@@ -3991,6 +4162,8 @@ class OverviewGraph extends BaseGraph {
       entity: '#00FFFF', event: '#A78BFA', signal: '#FB923C',
       operation: '#E879F9', rule: '#F87171', journey: '#2DD4BF',
       enum: '#94A3B8', element: '#C084FC', action: '#FCD34D',
+      concept: '#00E5FF', capability: '#FF6B6B', invariant: '#A78BFA',
+      property: '#34D399', objective: '#F472B6',
     };
 
     // Create per-type arrowhead markers
@@ -4028,13 +4201,27 @@ class OverviewGraph extends BaseGraph {
 
     this._typeColors = typeColors;
 
+    // Count edges per pair to offset parallel edges
+    this._edgePairIndex = new Map();
+    this._edgePairCount = new Map();
     for (const edge of this.data.edges) {
       if (!this.isEdgeVisible(edge)) continue;
-      this._renderEdge(edge);
+      const pairKey = [edge.from, edge.to].sort().join('|');
+      this._edgePairCount.set(pairKey, (this._edgePairCount.get(pairKey) || 0) + 1);
+    }
+    const pairCurrent = new Map();
+
+    for (const edge of this.data.edges) {
+      if (!this.isEdgeVisible(edge)) continue;
+      const pairKey = [edge.from, edge.to].sort().join('|');
+      const idx = pairCurrent.get(pairKey) || 0;
+      pairCurrent.set(pairKey, idx + 1);
+      const total = this._edgePairCount.get(pairKey) || 1;
+      this._renderEdge(edge, idx, total);
     }
   }
 
-  _renderEdge(edge) {
+  _renderEdge(edge, pairIdx = 0, pairTotal = 1) {
     const fromEl = this.nodeElements.get(edge.from);
     const toEl = this.nodeElements.get(edge.to);
     if (!fromEl || !toEl) return;
@@ -4059,19 +4246,28 @@ class OverviewGraph extends BaseGraph {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const curvature = Math.min(dist * 0.25, 60);
+    const curvature = Math.min(dist * 0.3, 80);
+
+    // Perpendicular offset for parallel edges between same pair
+    let perpX = 0, perpY = 0;
+    if (pairTotal > 1) {
+      const offset = (pairIdx - (pairTotal - 1) / 2) * 20;
+      const len = dist || 1;
+      perpX = (-dy / len) * offset;
+      perpY = (dx / len) * offset;
+    }
 
     let c1x, c1y, c2x, c2y;
     if (Math.abs(dx) > Math.abs(dy)) {
-      c1x = from.x + curvature * Math.sign(dx);
-      c1y = from.y;
-      c2x = to.x - curvature * Math.sign(dx);
-      c2y = to.y;
+      c1x = from.x + curvature * Math.sign(dx) + perpX;
+      c1y = from.y + perpY;
+      c2x = to.x - curvature * Math.sign(dx) + perpX;
+      c2y = to.y + perpY;
     } else {
-      c1x = from.x;
-      c1y = from.y + curvature * Math.sign(dy);
-      c2x = to.x;
-      c2y = to.y - curvature * Math.sign(dy);
+      c1x = from.x + perpX;
+      c1y = from.y + curvature * Math.sign(dy) + perpY;
+      c2x = to.x + perpX;
+      c2y = to.y - curvature * Math.sign(dy) + perpY;
     }
 
     // Resolve source node type for edge coloring
@@ -4115,7 +4311,7 @@ class OverviewGraph extends BaseGraph {
       const my = mt*mt*mt*from.y + 3*mt*mt*midT*c1y + 3*mt*midT*midT*c2y + midT*midT*midT*to.y;
       const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       label.setAttribute('x', mx);
-      label.setAttribute('y', my - 4);
+      label.setAttribute('y', my - 6);
       label.setAttribute('text-anchor', 'middle');
       label.classList.add('scope-overview-graph-edge-label');
       if (edgeColor) label.style.fill = edgeColor;
@@ -4156,17 +4352,17 @@ function initOverviewGraphsIn(parent) {
   });
 }
 
-// ===== ComponentGraph — Interactive Component Graph for Overview =====
+// ===== DomainGraph — Interactive Domain Graph for Overview =====
 
-/** @type {Map<HTMLElement, ComponentGraph>} */
-const componentGraphInstances = new Map();
+/** @type {Map<HTMLElement, DomainGraph>} */
+const domainGraphInstances = new Map();
 
-class ComponentGraph extends BaseGraph {
+class DomainGraph extends BaseGraph {
   constructor(container) {
-    super(container, 'component',
-      '.scope-component-graph-edges',
-      '.scope-component-graph-world',
-      '.scope-graph-node.scope-component-node',
+    super(container, 'domain',
+      '.scope-domain-graph-edges',
+      '.scope-domain-graph-world',
+      '.scope-graph-node.scope-domain-node',
       'nodeId'
     );
   }
@@ -4175,62 +4371,26 @@ class ComponentGraph extends BaseGraph {
     this.worldEl.innerHTML = '';
 
     for (const node of this.data.nodes) {
-      const div = this.createNode(node, 'scope-component-node');
+      const div = this.createNode(node, 'scope-domain-node');
 
-      // Apply component color via CSS custom property
+      // Apply domain color via CSS custom property
       if (node.color) {
         div.style.setProperty('--node-color', node.color);
         div.style.borderColor = node.color;
       }
 
-      // Dashed border for abstract/interface
-      if (node.isAbstract) div.classList.add('scope-component-node--abstract');
-      if (node.isInterface) div.classList.add('scope-component-node--interface');
-
       const nameEl = document.createElement('div');
-      nameEl.className = 'scope-component-node__name';
+      nameEl.className = 'scope-domain-node__name';
       nameEl.appendChild(this.createLink(node));
       div.appendChild(nameEl);
 
-      // Badge for @abstract / @interface
-      if (node.isAbstract || node.isInterface) {
-        const badgeEl = document.createElement('div');
-        badgeEl.className = 'scope-component-node__badge';
-        if (node.isAbstract) {
-          badgeEl.textContent = '@abstract';
-          badgeEl.classList.add('scope-component-node__badge--abstract');
-        } else {
-          badgeEl.textContent = '@interface';
-          badgeEl.classList.add('scope-component-node__badge--interface');
-        }
-        div.appendChild(badgeEl);
-      }
-
-      // Inheritance info for concrete components
-      const inheritParts = [];
-      if (node.extendsFrom) inheritParts.push('extends ' + node.extendsFrom);
-      if (node.implementsList && node.implementsList.length > 0) {
-        inheritParts.push('impl ' + node.implementsList.join(', '));
-      }
-      if (inheritParts.length > 0) {
-        const inheritEl = document.createElement('div');
-        inheritEl.className = 'scope-component-node__inherit';
-        inheritEl.textContent = inheritParts.join(' · ');
-        div.appendChild(inheritEl);
-      }
-
-      const statusEl = document.createElement('div');
-      statusEl.className = 'scope-component-node__status';
-      statusEl.textContent = node.status;
-      div.appendChild(statusEl);
-
       const countsEl = document.createElement('div');
-      countsEl.className = 'scope-component-node__counts';
+      countsEl.className = 'scope-domain-node__counts';
       countsEl.textContent = node.counts;
       div.appendChild(countsEl);
 
       const implEl = document.createElement('div');
-      implEl.className = 'scope-component-node__impl';
+      implEl.className = 'scope-domain-node__impl';
       const filled = Math.round(node.implPct / 12.5);
       const empty = 8 - filled;
       implEl.textContent = 'impl ' + '\u2588'.repeat(filled) + '\u2591'.repeat(empty) + ' ' + node.implPct + '%';
@@ -4379,11 +4539,11 @@ class ComponentGraph extends BaseGraph {
     }
 
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    group.classList.add('scope-component-graph-edge-group');
+    group.classList.add('scope-domain-graph-edge-group');
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', `M ${from.x} ${from.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${to.x} ${to.y}`);
-    path.classList.add('scope-component-graph-edge');
+    path.classList.add('scope-domain-graph-edge');
 
     if (edge.edgeType === 'extends') {
       path.classList.add('scope-graph-edge-extends');
@@ -4405,7 +4565,7 @@ class ComponentGraph extends BaseGraph {
       label.setAttribute('x', midX);
       label.setAttribute('y', midY - 6);
       label.setAttribute('text-anchor', 'middle');
-      label.classList.add('scope-component-graph-edge-label');
+      label.classList.add('scope-domain-graph-edge-label');
       label.textContent = edge.edgeType;
       group.appendChild(label);
     }
@@ -4415,20 +4575,20 @@ class ComponentGraph extends BaseGraph {
 
   destroy() {
     super.destroy();
-    componentGraphInstances.delete(this.container);
+    domainGraphInstances.delete(this.container);
   }
 }
 
-function initComponentGraphs() {
-  for (const [el, graph] of componentGraphInstances) {
+function initDomainGraphs() {
+  for (const [el, graph] of domainGraphInstances) {
     graph.destroy();
   }
-  componentGraphInstances.clear();
+  domainGraphInstances.clear();
 
-  document.querySelectorAll('.scope-component-graph').forEach(container => {
-    if (componentGraphInstances.has(container)) return;
-    const graph = new ComponentGraph(container);
-    componentGraphInstances.set(container, graph);
+  document.querySelectorAll('.scope-domain-graph').forEach(container => {
+    if (domainGraphInstances.has(container)) return;
+    const graph = new DomainGraph(container);
+    domainGraphInstances.set(container, graph);
   });
 }
 
@@ -4441,7 +4601,7 @@ function initDiagramCanvases() {
 
   document.querySelectorAll('.scope-diagram-container').forEach(container => {
     // Skip containers that have an interactive graph (they handle their own zoom/pan)
-    if (container.querySelector('.scope-component-graph')) return;
+    if (container.querySelector('.scope-domain-graph') || container.querySelector('.scope-overview-graph')) return;
     const svg = container.querySelector('svg');
     if (!svg) return;
     const canvas = new DiagramCanvas(container);
@@ -4480,14 +4640,14 @@ function attachNodeInteractivity(container, diagramType) {
       const [, nodeType, nodeName] = match;
       const cleanName = nodeName.trim();
 
-      // Get the component name from the URL path
-      const compName = decodeURIComponent(window.location.pathname.split('/component/')[1] || '');
+      // Get the domain name from the URL path
+      const domainName = decodeURIComponent(window.location.pathname.split('/domain/')[1] || '');
 
       // Resolve href: try command palette, fallback to building URL from type/name
       const item = commandPaletteItems.find(
         i => i.type === nodeType && i.name === cleanName
       );
-      const href = item?.href || (compName ? `/component/${encodeURIComponent(compName)}/${nodeType}/${encodeURIComponent(cleanName)}` : null);
+      const href = item?.href || (domainName ? `/domain/${encodeURIComponent(domainName)}/${nodeType}/${encodeURIComponent(cleanName)}` : null);
       if (!href) return;
 
       // Remove Mermaid's native click handler by cloning
@@ -4495,7 +4655,7 @@ function attachNodeInteractivity(container, diagramType) {
       node.parentNode.replaceChild(clone, node);
       makeClickable(clone, href, cleanName, nodeType, canvas);
     });
-  } else if (diagramType === 'component' || diagramType === 'screen' || diagramType === 'journey') {
+  } else if (diagramType === 'domain' || diagramType === 'concept' || diagramType === 'capability') {
     // Flowchart nodes: .node or .flowchart-label
     const nodes = svg.querySelectorAll('.node');
     nodes.forEach(node => {
@@ -4554,19 +4714,21 @@ function resolveNodeHref(diagramType, name) {
   // Use commandPaletteItems to resolve the href
   if (!commandPaletteItems.length) return null;
 
-  if (diagramType === 'component') {
+  if (diagramType === 'domain') {
     const item = commandPaletteItems.find(
-      i => i.type === 'component' && i.name === name
+      i => i.type === 'domain' && i.name === name
     );
-    return item?.href || `/component/${encodeURIComponent(name)}`;
+    return item?.href || `/domain/${encodeURIComponent(name)}`;
   }
 
-  // For entity/state/screen/journey — search by name and type
+  // For concept/capability/objective etc. — search by name and type
   const typeMap = {
-    entity: 'entity',
-    state: 'state',
-    screen: 'screen',
-    journey: 'journey',
+    concept: 'concept',
+    capability: 'capability',
+    invariant: 'invariant',
+    property: 'property',
+    objective: 'objective',
+    enum: 'enum',
   };
   const searchType = typeMap[diagramType];
   if (searchType) {
@@ -4679,7 +4841,7 @@ window.switchTab = function(tabName) {
   focusedListIdx = -1;
   updateFocusedItem();
 
-  if (getNavLevel() === 'component') {
+  if (getNavLevel() === 'domain') {
     applyNodeTypeFilterForCurrentScope();
   }
 };
@@ -4714,10 +4876,10 @@ async function renderMermaidInContainer(parent) {
   }
 }
 
-// ===== Phase 5: Components Panel Toggle =====
+// ===== Phase 5: Domains Panel Toggle =====
 
-window.toggleComponentsPanel = function() {
-  const panel = document.querySelector('.scope-components-panel');
+window.toggleDomainsPanel = function() {
+  const panel = document.querySelector('.scope-domains-panel');
   if (panel) panel.classList.toggle('open');
 };
 
@@ -4743,9 +4905,9 @@ function navigateWithTransition(href, event) {
   }, 200);
 }
 
-// Intercept component card clicks for transition
+// Intercept domain card clicks for transition
 document.addEventListener('click', (e) => {
-  const card = e.target.closest('.scope-component-card');
+  const card = e.target.closest('.scope-domain-card') || e.target.closest('.scope-component-card');
   if (card && card.href) {
     e.preventDefault();
     navigateWithTransition(card.href, e);
@@ -4798,7 +4960,7 @@ async function renderMermaidDiagrams() {
 
   // After render, init canvases and interactivity
   initDiagramCanvases();
-  initComponentGraphs();
+  initDomainGraphs();
   initEntityGraphs();
   initFlowGraphs();
   initEventGraphs();
@@ -4910,7 +5072,7 @@ async function reloadContent() {
       }
 
       await renderMermaidDiagrams();
-      initComponentGraphs();
+      initDomainGraphs();
       initEntityGraphs();
       initFlowGraphs();
       initEventGraphs();
@@ -5108,28 +5270,25 @@ function renderCommandResults(query) {
       const rest = typeMatch[2];
 
       const typeAliases = {
-        entity: 'entity', e: 'entity',
-        flow: 'flow', f: 'flow',
-        api: 'endpoint', endpoint: 'endpoint', ep: 'endpoint',
-        state: 'state', s: 'state',
-        event: 'event', ev: 'event',
-        rule: 'rule', r: 'rule',
-        screen: 'screen', sc: 'screen',
-        journey: 'journey', j: 'journey',
-        component: 'component', comp: 'component', c: 'component',
+        concept: 'concept', co: 'concept',
+        capability: 'capability', cap: 'capability',
+        invariant: 'invariant', inv: 'invariant',
+        property: 'property', prop: 'property',
+        objective: 'objective', obj: 'objective',
+        domain: 'domain', d: 'domain',
         page: 'page', diagram: 'diagram',
-        enum: 'enum',
+        enum: 'enum', e: 'enum',
       };
 
       if (typeAliases[prefix]) {
         typeFilter = typeAliases[prefix];
         searchTerm = rest;
       } else {
-        const matchingComp = commandPaletteItems.find(
-          item => item.type === 'component' && item.name.toLowerCase().startsWith(prefix)
+        const matchingDomain = commandPaletteItems.find(
+          item => item.type === 'domain' && item.name.toLowerCase().startsWith(prefix)
         );
-        if (matchingComp) {
-          compFilter = matchingComp.name;
+        if (matchingDomain) {
+          compFilter = matchingDomain.name;
           searchTerm = rest;
         }
       }
@@ -5137,10 +5296,10 @@ function renderCommandResults(query) {
 
     filtered = commandPaletteItems.filter(item => {
       if (typeFilter && item.type !== typeFilter) return false;
-      if (compFilter && item.component !== compFilter) return false;
+      if (compFilter && item.domain !== compFilter) return false;
       if (!searchTerm) return true;
       return item.name.toLowerCase().includes(searchTerm) ||
-             item.component?.toLowerCase().includes(searchTerm);
+             item.domain?.toLowerCase().includes(searchTerm);
     });
   }
 
@@ -5151,20 +5310,17 @@ function renderCommandResults(query) {
     grouped[group].push(item);
   }
 
-  const TYPE_ORDER = ['page', 'diagram', 'component', 'entity', 'enum', 'flow', 'endpoint', 'state', 'event', 'rule', 'screen', 'journey'];
+  const TYPE_ORDER = ['page', 'diagram', 'domain', 'concept', 'enum', 'capability', 'invariant', 'property', 'objective'];
   const TYPE_COLORS = {
     page: 'var(--scope-text-secondary)',
     diagram: 'var(--scope-text-secondary)',
-    component: 'var(--scope-diagram-component)',
-    entity: 'var(--scope-diagram-entity)',
-    enum: 'var(--scope-diagram-entity)',
-    flow: 'var(--scope-diagram-flow)',
-    endpoint: 'var(--scope-accent)',
-    state: 'var(--scope-diagram-state)',
-    event: 'var(--scope-wip)',
-    rule: 'var(--scope-error)',
-    screen: 'var(--scope-diagram-screen)',
-    journey: 'var(--scope-diagram-journey)',
+    domain: 'var(--scope-diagram-component)',
+    concept: '#00E5FF',
+    enum: '#60A5FA',
+    capability: '#FF6B6B',
+    invariant: '#A78BFA',
+    property: '#34D399',
+    objective: '#F472B6',
   };
 
   let html = '';
@@ -5174,7 +5330,7 @@ function renderCommandResults(query) {
     for (const item of grouped[type]) {
       const selected = firstItem ? ' selected' : '';
       firstItem = false;
-      const compLabel = item.component ? `<span style="color: var(--scope-text-tertiary); margin-left: auto; font-size: var(--scope-text-xs)">${escapeHtml(item.component)}</span>` : '';
+      const compLabel = item.domain ? `<span style="color: var(--scope-text-tertiary); margin-left: auto; font-size: var(--scope-text-xs)">${escapeHtml(item.domain)}</span>` : '';
       const color = TYPE_COLORS[item.type] || 'var(--scope-text-secondary)';
       html += `<div class="scope-command-item${selected}" data-href="${item.href}" onclick="navigateTo('${item.href}')">
         <span class="scope-command-item-type" style="color: ${color}">${item.type}</span>
@@ -5266,7 +5422,7 @@ function getNavigableItems() {
   const scope = activePanel || document.getElementById('canvas');
   if (!scope) return [];
   return Array.from(scope.querySelectorAll(
-    '.scope-component-card, .scope-entity-card, .scope-construct-link'
+    '.scope-domain-card, .scope-component-card, .scope-entity-card, .scope-construct-link'
   ));
 }
 
@@ -5296,17 +5452,17 @@ function getActiveTabPanel() {
 }
 
 function getNodeFilterScope() {
-  if (getNavLevel() !== 'component') return null;
+  if (getNavLevel() !== 'domain') return null;
   const frameNav = document.getElementById('frame-nav');
   if (!frameNav) return null;
-  const component = frameNav.dataset.component || '';
+  const domain = frameNav.dataset.domain || '';
   const tab = activeTab || getFrameTabIds()[0] || 'overview';
-  if (!component || !tab) return null;
-  return { component, tab };
+  if (!domain || !tab) return null;
+  return { domain, tab };
 }
 
 function getNodeFilterKey(scope) {
-  return `${NODE_FILTER_STORAGE_PREFIX}:${encodeURIComponent(scope.component)}:${encodeURIComponent(scope.tab)}`;
+  return `${NODE_FILTER_STORAGE_PREFIX}:${encodeURIComponent(scope.domain)}:${encodeURIComponent(scope.tab)}`;
 }
 
 function getNodeFilterFromStorage(scope, availableTypes) {
@@ -5363,7 +5519,7 @@ function getAllGraphMaps() {
     apiGraphInstances,
     journeyGraphInstances,
     overviewGraphInstances,
-    componentGraphInstances
+    domainGraphInstances
   ];
 }
 
@@ -5381,19 +5537,14 @@ function getGraphInstancesForPanel(panel) {
 }
 
 const NODE_TYPE_COLOR_MAP = {
-  flow: 'var(--scope-type-flow)',
-  entity: 'var(--scope-type-entity)',
-  state: 'var(--scope-type-state)',
-  api: 'var(--scope-type-api)',
-  screen: 'var(--scope-type-screen)',
-  event: 'var(--scope-type-event)',
-  signal: 'var(--scope-type-signal)',
-  operation: 'var(--scope-type-operation)',
-  rule: 'var(--scope-type-rule)',
-  journey: 'var(--scope-type-journey)',
-  enum: 'var(--scope-type-enum)',
-  element: 'var(--scope-type-element)',
-  action: 'var(--scope-type-action)',
+  concept: '#00E5FF',
+  capability: '#FF6B6B',
+  lifecycle: '#FBBF24',
+  invariant: '#A78BFA',
+  property: '#34D399',
+  objective: '#F472B6',
+  enum: '#60A5FA',
+  domain: 'var(--scope-diagram-component)',
 };
 
 function renderNodeFilterRows(types, filterSet) {
@@ -5531,7 +5682,7 @@ document.addEventListener('keydown', (e) => {
     const palette = document.getElementById('command-palette');
     const shortcuts = document.getElementById('shortcuts-panel');
     const nodeFilterPanel = document.getElementById('node-filter-panel');
-    const compPanel = document.querySelector('.scope-components-panel.open');
+    const compPanel = document.querySelector('.scope-domains-panel.open');
     if (palette?.classList.contains('open')) {
       closeCommandPalette();
     } else if (shortcuts?.classList.contains('open')) {
@@ -5541,21 +5692,21 @@ document.addEventListener('keydown', (e) => {
     } else if (compPanel) {
       compPanel.classList.remove('open');
     } else if (level === 'construct') {
-      // Back to component
+      // Back to domain
       const frameNav = document.getElementById('frame-nav');
-      const compName = frameNav?.dataset.component;
-      if (compName) {
-        navigateSPA(`/component/${encodeURIComponent(compName)}`);
+      const domainName = frameNav?.dataset.domain;
+      if (domainName) {
+        navigateSPA(`/domain/${encodeURIComponent(domainName)}`);
       } else {
         navigateSPA('/');
       }
-    } else if (level === 'component') {
-      // Back to components
-      navigateSPA('/components');
+    } else if (level === 'domain') {
+      // Back to domains
+      navigateSPA('/domains');
     } else {
       // System level: go home if not already
       const path = window.location.pathname;
-      if (path === '/dashboard' || path === '/components' || path.startsWith('/diagram/')) {
+      if (path === '/dashboard' || path === '/domains' || path.startsWith('/diagram/')) {
         navigateSPA('/');
       }
     }
@@ -5571,7 +5722,7 @@ document.addEventListener('keydown', (e) => {
 
   if (key === '.') {
     const filterBtn = document.getElementById('frame-filter-btn');
-    if (level === 'component' && filterBtn) {
+    if (level === 'domain' && filterBtn) {
       e.preventDefault();
       openNodeFilterPanel();
     }
@@ -5607,8 +5758,8 @@ document.addEventListener('keydown', (e) => {
 
   // Tab — cycle tabs contextually
   if (key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-    if (level === 'component') {
-      // Cycle through component tabs in frame nav
+    if (level === 'domain') {
+      // Cycle through domain tabs in frame nav
       const tabIds = getFrameTabIds();
       if (tabIds.length > 1) {
         e.preventDefault();
@@ -5633,7 +5784,7 @@ document.addEventListener('keydown', (e) => {
   // Number keys — contextual
   const numKey = parseInt(key);
   if (numKey >= 1 && numKey <= 9) {
-    if (level === 'component') {
+    if (level === 'domain') {
       // Switch to Nth tab
       const tabIds = getFrameTabIds();
       const idx = numKey - 1;
@@ -5645,7 +5796,7 @@ document.addEventListener('keydown', (e) => {
       if (numKey === 1) {
         navigateSPA('/');
       } else if (numKey === 2) {
-        navigateSPA('/components');
+        navigateSPA('/domains');
       } else if (numKey === 3) {
         navigateSPA('/dashboard');
       } else if (numKey === 4) {
@@ -5759,9 +5910,9 @@ function setupFrameNavHandlers() {
     });
   }
 
-  // Component tab click handlers (already have onclick but add transition)
+  // Domain tab click handlers (already have onclick but add transition)
   const level = getNavLevel();
-  if (level === 'component') {
+  if (level === 'domain') {
     // Initialize activeTab from frame nav
     const activeFrameTab = document.querySelector('#frame-nav .scope-frame-tab.active[data-tab]');
     if (activeFrameTab && !activeTab) {
@@ -5825,7 +5976,7 @@ async function navigateSPA(href) {
 
     // Re-init interactive elements
     await renderMermaidDiagrams();
-    initComponentGraphs();
+    initDomainGraphs();
     initEntityGraphs();
     initFlowGraphs();
     initEventGraphs();
@@ -5836,9 +5987,9 @@ async function navigateSPA(href) {
     initOverviewGraphs();
     initTimeline();
 
-    // Restore active tab if component level
+    // Restore active tab if domain level
     const level = getNavLevel();
-    if (level === 'component') {
+    if (level === 'domain') {
       const activeFrameTab = document.querySelector('#frame-nav .scope-frame-tab.active[data-tab]');
       if (activeFrameTab) {
         activeTab = activeFrameTab.dataset.tab;

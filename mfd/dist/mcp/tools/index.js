@@ -2,7 +2,7 @@ export { loadDocument } from "./common.js";
 export { handleParse } from "./parse.js";
 export { handleValidate } from "./validate.js";
 export { handleStats } from "./stats.js";
-export { handleRender, renderComponentDiagram, renderEntityDiagram, renderStateDiagram, renderFlowDiagram, renderScreenDiagram, renderJourneyDiagram, } from "./render.js";
+export { handleRender, renderDomainDiagram, renderConceptDiagram, renderLifecycleDiagram, renderCapabilityDiagram, renderObjectiveDiagram, renderInvariantDiagram, renderPropertyDiagram, } from "./render.js";
 export { handleContract } from "./contract.js";
 export { handleTestContract } from "./test-contract.js";
 export { handleQuery } from "./query.js";

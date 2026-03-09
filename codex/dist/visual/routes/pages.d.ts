@@ -1,7 +1,7 @@
 /**
  * HTML page routes — server-side rendered pages
- * Routes: / (System Info), /components (Component Graph), /dashboard,
- *         /component/:name, /component/:name/:type/:item
+ * Routes: / (System Info), /domains (Domain Overview), /dashboard,
+ *         /domain/:name, /domain/:name/:type/:item
  */
 import { Hono } from "hono";
 import type { ModelSnapshot } from "../types.js";

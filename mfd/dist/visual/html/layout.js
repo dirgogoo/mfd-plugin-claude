@@ -1,9 +1,9 @@
 /**
  * Layout shell: Scope Bar + Dynamic Nav Rail + Canvas + external deps
- * Nav rail shows components from the model, not fixed diagram types.
+ * Nav rail shows domains from the model, not fixed diagram types.
  */
 import { getStyles } from "./styles.js";
-import { escapeHtml, componentLink } from "./shared.js";
+import { escapeHtml, domainLink } from "./shared.js";
 const RETICLE_LOGO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
   <circle cx="12" cy="12" r="9"/>
   <line x1="12" y1="3" x2="12" y2="7"/>
@@ -30,26 +30,26 @@ const STATUS_COLORS = {
 function getNavLevel(options) {
     if (options.constructContext)
         return "construct";
-    if (options.activePage === "component" && options.componentTabs?.length)
-        return "component";
+    if (options.activePage === "domain" && options.domainTabs?.length)
+        return "domain";
     return "system";
 }
 function renderFrameNav(options) {
     const level = getNavLevel(options);
-    if (level === "component") {
-        const tabs = options.componentTabs ?? [];
+    if (level === "domain") {
+        const tabs = options.domainTabs ?? [];
         const activeTab = options.activeTab ?? tabs[0]?.id ?? "overview";
-        const compName = options.activeComponent ?? "";
-        const backTab = `<a href="/components" class="scope-frame-tab" data-nav="back"><span class="scope-frame-tab-key">esc</span> back</a>`;
+        const domainName = options.activeDomain ?? "";
+        const backTab = `<a href="/domains" class="scope-frame-tab" data-nav="back"><span class="scope-frame-tab-key">esc</span> back</a>`;
         const tabItems = tabs.map((tab, i) => {
             const isActive = tab.id === activeTab ? " active" : "";
             const num = i + 1;
-            return `<a href="/component/${encodeURIComponent(compName)}?tab=${tab.id}" class="scope-frame-tab${isActive}" data-tab="${tab.id}" data-nav="tab-${tab.id}" onclick="event.preventDefault(); switchTab('${tab.id}')"><span class="scope-frame-tab-key">${num <= 9 ? num : ""}</span> ${escapeHtml(tab.label)} <span class="scope-frame-tab-count">${tab.count}</span></a>`;
+            return `<a href="/domain/${encodeURIComponent(domainName)}?tab=${tab.id}" class="scope-frame-tab${isActive}" data-tab="${tab.id}" data-nav="tab-${tab.id}" onclick="event.preventDefault(); switchTab('${tab.id}')"><span class="scope-frame-tab-key">${num <= 9 ? num : ""}</span> ${escapeHtml(tab.label)} <span class="scope-frame-tab-count">${tab.count}</span></a>`;
         }).join("\n");
         const searchTab = `<span class="scope-frame-tab" data-nav="search" id="frame-search-btn"><span class="scope-frame-tab-key">/</span> search</span>`;
         const filterTab = `<span class="scope-frame-tab" data-nav="filter" id="frame-filter-btn"><span class="scope-frame-tab-key">.</span> filter</span>`;
         const helpTab = `<span class="scope-frame-tab" data-nav="shortcuts" id="frame-help-btn"><span class="scope-frame-tab-key">?</span> help</span>`;
-        return `<nav class="scope-frame-nav" id="frame-nav" data-level="component" data-component="${escapeHtml(compName)}">
+        return `<nav class="scope-frame-nav" id="frame-nav" data-level="domain" data-domain="${escapeHtml(domainName)}">
       ${backTab}
       ${tabItems}
       ${searchTab}
@@ -59,12 +59,12 @@ function renderFrameNav(options) {
     }
     if (level === "construct") {
         const ctx = options.constructContext;
-        const compName = ctx.component;
-        const backTab = `<a href="/component/${encodeURIComponent(compName)}" class="scope-frame-tab" data-nav="back"><span class="scope-frame-tab-key">esc</span> back</a>`;
+        const domainName = ctx.domain;
+        const backTab = `<a href="/domain/${encodeURIComponent(domainName)}" class="scope-frame-tab" data-nav="back"><span class="scope-frame-tab-key">esc</span> back</a>`;
         const contextLabel = `<span class="scope-frame-tab active" style="pointer-events:none"><span style="opacity:0.5">${escapeHtml(ctx.type)}:</span>${escapeHtml(ctx.name)}</span>`;
         const searchTab = `<span class="scope-frame-tab" data-nav="search" id="frame-search-btn"><span class="scope-frame-tab-key">/</span> search</span>`;
         const helpTab = `<span class="scope-frame-tab" data-nav="shortcuts" id="frame-help-btn"><span class="scope-frame-tab-key">?</span> help</span>`;
-        return `<nav class="scope-frame-nav" id="frame-nav" data-level="construct" data-component="${escapeHtml(compName)}">
+        return `<nav class="scope-frame-nav" id="frame-nav" data-level="construct" data-domain="${escapeHtml(domainName)}">
       ${backTab}
       ${contextLabel}
       ${searchTab}
@@ -75,7 +75,7 @@ function renderFrameNav(options) {
     const { activePage } = options;
     return `<nav class="scope-frame-nav" id="frame-nav" data-level="system">
       <a href="/" class="scope-frame-tab${activePage === "system" ? " active" : ""}" data-nav="system"><span class="scope-frame-tab-key">1</span> system</a>
-      <a href="/components" class="scope-frame-tab${activePage === "components" ? " active" : ""}" data-nav="components"><span class="scope-frame-tab-key">2</span> components</a>
+      <a href="/domains" class="scope-frame-tab${activePage === "domains" ? " active" : ""}" data-nav="domains"><span class="scope-frame-tab-key">2</span> domains</a>
       <a href="/dashboard" class="scope-frame-tab${activePage === "dashboard" ? " active" : ""}" data-nav="dashboard"><span class="scope-frame-tab-key">3</span> dashboard</a>
       <a href="/timeline" class="scope-frame-tab${activePage === "timeline" ? " active" : ""}" data-nav="timeline"><span class="scope-frame-tab-key">4</span> timeline</a>
       <span class="scope-frame-tab" data-nav="search" id="frame-search-btn"><span class="scope-frame-tab-key">/</span> search</span>
@@ -91,11 +91,11 @@ function renderShortcutsPanel(options) {
       <div class="scope-shortcut-row"><span>Navigate Items Up</span><span class="scope-shortcut-key">k</span></div>
       <div class="scope-shortcut-row"><span>Open Focused Item</span><span class="scope-shortcut-key">Enter</span></div>
       <div class="scope-shortcut-row"><span>Show Shortcuts</span><span class="scope-shortcut-key">?</span></div>`;
-    if (level === "component") {
+    if (level === "domain") {
         return `<div class="scope-shortcuts-panel" id="shortcuts-panel">
     <div class="scope-shortcuts-content">
       <h3>Keyboard Shortcuts</h3>
-      <div class="scope-shortcut-row"><span>Back to Components</span><span class="scope-shortcut-key">Esc</span></div>
+      <div class="scope-shortcut-row"><span>Back to Domains</span><span class="scope-shortcut-key">Esc</span></div>
       <div class="scope-shortcut-row"><span>Filter Node Types</span><span class="scope-shortcut-key">.</span></div>
       <div class="scope-shortcut-row"><span>Switch Tab (1-9)</span><span class="scope-shortcut-key">1-9</span></div>
       <div class="scope-shortcut-row"><span>Cycle Tabs</span><span class="scope-shortcut-key">Tab</span></div>
@@ -107,7 +107,7 @@ function renderShortcutsPanel(options) {
         return `<div class="scope-shortcuts-panel" id="shortcuts-panel">
     <div class="scope-shortcuts-content">
       <h3>Keyboard Shortcuts</h3>
-      <div class="scope-shortcut-row"><span>Back to Component</span><span class="scope-shortcut-key">Esc</span></div>
+      <div class="scope-shortcut-row"><span>Back to Domain</span><span class="scope-shortcut-key">Esc</span></div>
       ${common}
     </div>
   </div>`;
@@ -117,7 +117,7 @@ function renderShortcutsPanel(options) {
     <div class="scope-shortcuts-content">
       <h3>Keyboard Shortcuts</h3>
       <div class="scope-shortcut-row"><span>System Info</span><span class="scope-shortcut-key">1</span></div>
-      <div class="scope-shortcut-row"><span>Components</span><span class="scope-shortcut-key">2</span></div>
+      <div class="scope-shortcut-row"><span>Domains</span><span class="scope-shortcut-key">2</span></div>
       <div class="scope-shortcut-row"><span>Progress Dashboard</span><span class="scope-shortcut-key">3</span></div>
       <div class="scope-shortcut-row"><span>Timeline</span><span class="scope-shortcut-key">4</span></div>
       <div class="scope-shortcut-row"><span>Cycle Tabs</span><span class="scope-shortcut-key">Tab</span></div>
@@ -135,30 +135,29 @@ function renderNodeFilterPanel() {
   </div>`;
 }
 export function renderLayout(content, options) {
-    const { systemName, systemVersion, activePage, activeComponent, breadcrumbs, title, components } = options;
+    const { systemName, systemVersion, activePage, activeDomain, breadcrumbs, title, domains } = options;
     // Build dynamic nav rail
     const railItems = [];
     // System overview
-    const systemActive = (activePage === "system" || activePage === "components") ? " active" : "";
+    const systemActive = (activePage === "system" || activePage === "domains") ? " active" : "";
     railItems.push(`<a href="/" class="scope-rail-item${systemActive}" data-tooltip="System" data-nav="system">
     <span class="scope-rail-icon">${NAV_ICONS.system}</span>
   </a>`);
     railItems.push(`<div class="scope-rail-separator"></div>`);
-    // Dynamic component items
-    if (components?.length) {
+    // Dynamic domain items
+    if (domains?.length) {
         const maxVisible = 10;
-        const visibleComponents = components.slice(0, maxVisible);
-        for (const comp of visibleComponents) {
-            const isActive = activeComponent === comp.name ? " active" : "";
-            const statusColor = comp.status ? (STATUS_COLORS[comp.status] ?? "var(--scope-pending)") : "var(--scope-text-tertiary)";
-            const firstLetter = comp.name.charAt(0).toUpperCase();
-            railItems.push(`<a href="${componentLink(comp.name)}" class="scope-rail-item scope-rail-component${isActive}" data-tooltip="${escapeHtml(comp.name)}" data-nav="component-${escapeHtml(comp.name)}" style="--status-color: ${statusColor}">
+        const visibleDomains = domains.slice(0, maxVisible);
+        for (const domain of visibleDomains) {
+            const isActive = activeDomain === domain.name ? " active" : "";
+            const firstLetter = domain.name.charAt(0).toUpperCase();
+            railItems.push(`<a href="${domainLink(domain.name)}" class="scope-rail-item scope-rail-domain${isActive}" data-tooltip="${escapeHtml(domain.name)}" data-nav="domain-${escapeHtml(domain.name)}">
         <span class="scope-rail-letter">${firstLetter}</span>
       </a>`);
         }
-        if (components.length > maxVisible) {
-            railItems.push(`<a href="/components" class="scope-rail-item scope-rail-more" data-tooltip="${components.length - maxVisible} more...">
-        <span class="scope-rail-letter">+${components.length - maxVisible}</span>
+        if (domains.length > maxVisible) {
+            railItems.push(`<a href="/domains" class="scope-rail-item scope-rail-more" data-tooltip="${domains.length - maxVisible} more...">
+        <span class="scope-rail-letter">+${domains.length - maxVisible}</span>
       </a>`);
         }
         railItems.push(`<div class="scope-rail-separator"></div>`);
@@ -187,8 +186,8 @@ export function renderLayout(content, options) {
         }).join(`<span class="separator">&gt;</span>`);
         breadcrumbHtml = `<div class="scope-bar-breadcrumb">${crumbs}</div>`;
     }
-    // Build components data for JS command palette
-    const componentsJson = JSON.stringify((components ?? []).map((c) => ({ name: c.name, status: c.status })));
+    // Build domains data for JS command palette
+    const domainsJson = JSON.stringify((domains ?? []).map((d) => ({ name: d.name })));
     return `<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -218,7 +217,7 @@ export function renderLayout(content, options) {
   <!-- Command Palette -->
   <div class="scope-command-palette-overlay" id="command-palette">
     <div class="scope-command-palette">
-      <input class="scope-command-input" id="command-input" placeholder="Search constructs... (type: or component: to filter)" autocomplete="off">
+      <input class="scope-command-input" id="command-input" placeholder="Search constructs... (type: or domain: to filter)" autocomplete="off">
       <div class="scope-command-results" id="command-results"></div>
     </div>
   </div>
@@ -228,8 +227,8 @@ export function renderLayout(content, options) {
   <!-- Node Filter Panel -->
   ${renderNodeFilterPanel()}
 
-  <!-- Inline model components data for command palette -->
-  <script type="application/json" id="model-components-data">${componentsJson}</script>
+  <!-- Inline model domains data for command palette -->
+  <script type="application/json" id="model-domains-data">${domainsJson}</script>
 
   <!-- Mermaid CDN -->
   <script type="module">
